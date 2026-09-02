@@ -36,9 +36,7 @@ export default defineConfig({
       exclude: [
         "**/*.test.*",
         "**/types.ts",
-        "**/index.ts",
         "apps/api/src/server.ts",
-        "apps/api/src/db/prisma.ts",
         "apps/web/components/RegisterServiceWorker.tsx",
       ],
       thresholds: {

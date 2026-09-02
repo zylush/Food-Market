@@ -19,13 +19,13 @@ The browser talks only to same-origin `/api/v1` paths. Next.js rewrites those pa
 
 ## Local setup
 
-Requirements: Node.js 24.x, Corepack, pnpm 10.x, and a local MySQL 8-compatible server. Create three empty databases named `foodiesfeed_dev`, `foodiesfeed_test`, and `foodiesfeed_shadow`, then copy `.env.example` to `.env` and replace the local database credentials and session secret. Real Stripe values are not needed for the automated suite.
+Requirements: Node.js 24.x, Corepack, pnpm 10.x, and a local MySQL 8-compatible server. Create three empty databases named `foodiesfeed_dev`, `foodiesfeed_test`, and `foodiesfeed_shadow`, then copy the root `.env.example` to `apps/api/.env` and replace the local database credentials and session secret. Filtered pnpm scripts run with `apps/api` as their working directory, so a root `.env` is not used by the API or Prisma commands. Real Stripe values are not needed for the automated suite.
 
 Corepack is used explicitly because this workspace is run in environments where a global pnpm shim may not be writable:
 
-```bash
+```powershell
 corepack pnpm install
-copy .env.example .env
+Copy-Item .env.example apps/api/.env
 corepack pnpm db:generate
 corepack pnpm db:migrate
 corepack pnpm db:seed
@@ -42,7 +42,7 @@ corepack pnpm test:coverage    # V8 coverage report with thresholds
 corepack pnpm typecheck
 corepack pnpm lint
 corepack pnpm build
-corepack pnpm test:e2e         # starts both local apps through Playwright
+corepack pnpm test:e2e         # builds/starts production web; API boundaries are deterministic browser mocks
 corepack pnpm db:migrate:deploy
 corepack pnpm db:seed
 ```
@@ -81,7 +81,7 @@ The manifest uses standalone display mode, and the service worker caches only sh
 
 ## Database and technical decisions
 
-This project uses TiDB Cloud as its managed MySQL-compatible database. Prisma uses the standard MySQL connector, and the application relies only on portable relational features. The same schema and migrations can run against a local MySQL instance for development and testing.
+This project uses TiDB Cloud as its managed MySQL-compatible database. Prisma uses the standard MySQL connector, and the application relies only on portable relational features. The same schema and migrations can run against a local MySQL instance for development and testing. At runtime, the MariaDB driver adapter explicitly maps TiDB's `sslaccept=strict` URL option to certificate-verified TLS; weakened `sslaccept` modes are rejected.
 
 Local development uses the installed MySQL 8 server with separate development, test, and shadow databases. The initial migration creates `User`, `Subscription`, `RecentSearch`, and `StripeWebhookEvent`, including foreign keys, unique constraints, and indexes. The seed is idempotent and creates exactly `demo@foodiesfeed.local` (or the configured synthetic email).
 
@@ -93,10 +93,11 @@ The single demo identity is intentionally shared by all evaluators. Its search h
 
 The repository is prepared for two Vercel projects:
 
-1. Create/link `foodiesfeed-api` with root directory `apps/api`, deploy the `api/index.ts` Vercel function in Frankfurt (`fra1`), and set the server-only variables from `.env.example`. Use TiDB's TLS connection string for `DATABASE_URL`. Apply the committed migration with `corepack pnpm db:migrate:deploy`, then run the idempotent seed.
-2. Create/link `foodiesfeed-web` with root directory `apps/web`. Set `API_ORIGIN` to the stable API deployment URL and deploy. The web project rewrites same-origin `/api/*` requests to that API origin.
-3. In Stripe test mode, create the `FoodiesFeed Premium` product and a recurring EUR Price of €4.99/month. Register the stable API webhook URL for the supported subscription and invoice events, then store the resulting Price ID, secret key, and webhook signing secret only in Vercel environment settings.
-4. Complete one test-mode Checkout with synthetic test data. Verify the signed webhook changes the persisted subscription to `active`, confirm `/api/v1/entitlements`, open protected nutrition, switch all four locales, and install the HTTPS PWA. Revoke/cancel the test subscription and verify the next nutrition request returns `403 SUBSCRIPTION_REQUIRED`.
+1. Create a Frankfurt TiDB Cloud Starter cluster/database and retain its `sslaccept=strict` MySQL URL outside source control. Apply the committed migration with `corepack pnpm db:migrate:deploy`, then run the idempotent seed.
+2. In Stripe test mode, create the `FoodiesFeed Premium` product and a recurring EUR Price of €4.99/month. Register `https://foodiesfeed-api.vercel.app/v1/webhooks/stripe` for the supported subscription and invoice events and retain the resulting Price ID, test secret key, and signing secret outside source control.
+3. Create/link `foodiesfeed-api` with root directory `apps/api`. Set the server-only variables from `.env.example`, including the TiDB URL, Stripe test values, a generated 32+ character session secret, and the final HTTPS web origin. Deploy the `api/index.ts` function in Frankfurt (`fra1`).
+4. Create/link `foodiesfeed-web` with root directory `apps/web`. Set `API_ORIGIN` to `https://foodiesfeed-api.vercel.app` and deploy. The web project rewrites same-origin `/api/*` requests to that API origin. If either project receives a different stable domain, update the webhook URL, `APP_ORIGIN`, and `API_ORIGIN` before the smoke test.
+5. Complete one test-mode Checkout with synthetic test data. Verify the signed webhook changes the persisted subscription to `active`, confirm `/api/v1/entitlements`, open protected nutrition, switch all four locales, and install the HTTPS PWA. Revoke/cancel the test subscription and verify the next nutrition request returns `403 SUBSCRIPTION_REQUIRED`.
 
 Creating Vercel projects, TiDB resources, Stripe products/prices, webhook registrations, deploying, and running a remote migration are external actions and require the operator’s interactive account access and approval. No live credentials or public deployment URL are stored in this repository.
 
