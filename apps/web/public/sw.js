@@ -1,4 +1,4 @@
-const SHELL_CACHE = "foodiesfeed-shell-v1";
+const SHELL_CACHE = "foodiesfeed-shell-v2";
 const SHELL_ASSETS = [
   "/en",
   "/nl",
@@ -46,11 +46,6 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          void caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
-          return response;
-        })
         .catch(async () => {
           const locale = ["en", "nl", "de", "fr"].find((candidate) =>
             url.pathname === `/${candidate}` || url.pathname.startsWith(`/${candidate}/`),
