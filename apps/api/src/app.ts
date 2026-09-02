@@ -53,13 +53,14 @@ function setNoStore(response: Response, privateResponse = false): void {
 }
 
 function allowedOrigin(origin: string, config: AppConfig): boolean {
+  if (config.nodeEnv === "production") return origin === config.appOrigin;
   return new Set([config.appOrigin, "http://localhost:3000", "http://127.0.0.1:3000"]).has(origin);
 }
 
 function validateBrowserMutation(config: AppConfig) {
   return (request: Request, _response: Response, next: NextFunction): void => {
     const origin = request.get("origin");
-    if (origin && !allowedOrigin(origin, config)) {
+    if ((!origin && config.nodeEnv === "production") || (origin && !allowedOrigin(origin, config))) {
       next(new AppError(ErrorCode.OriginNotAllowed, 403));
       return;
     }
