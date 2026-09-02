@@ -3,6 +3,22 @@ import { createApp } from "./app";
 import { InMemoryRepository } from "./db/repository";
 import type { OpenFoodFactsGateway } from "./integrations/open-food-facts";
 import type { NutritionDetails } from "@foodiesfeed/contracts";
+import type { AppConfig } from "./config";
+
+const productionConfig: AppConfig = {
+  appOrigin: "https://foodiesfeed-web.vercel.app",
+  demoUserEmail: "demo@foodiesfeed.local",
+  sessionSecret: "production-test-session-key-32-characters",
+  sessionCookieName: "foodiesfeed_demo",
+  cookieSecure: true,
+  stripePriceId: "price_demo",
+  stripeSecretKey: "sk_test_demo",
+  stripeWebhookSecret: "whsec_demo",
+  openFoodFactsBaseUrl: "https://world.openfoodfacts.org",
+  openFoodFactsUserAgent: "FoodiesFeed/test",
+  databaseUrl: "mysql://unused.example/foodiesfeed",
+  nodeEnv: "production",
+};
 
 const gateway: OpenFoodFactsGateway = {
   search: async () => [
@@ -171,5 +187,27 @@ describe("Express API foundation", () => {
       .send({});
     expect(response.status).toBe(403);
     expect(response.body.error.code).toBe("ORIGIN_NOT_ALLOWED");
+  });
+
+  it("requires the configured HTTPS origin for production browser mutations", async () => {
+    const app = createApp({ config: productionConfig, gateway, repository: new InMemoryRepository() });
+    const missing = await request(app)
+      .post("/v1/demo-session")
+      .set("Content-Type", "application/json")
+      .send({});
+    const localhost = await request(app)
+      .post("/v1/demo-session")
+      .set("Origin", "http://localhost:3000")
+      .set("Content-Type", "application/json")
+      .send({});
+    const configured = await request(app)
+      .post("/v1/demo-session")
+      .set("Origin", productionConfig.appOrigin)
+      .set("Content-Type", "application/json")
+      .send({});
+
+    expect(missing.status).toBe(403);
+    expect(localhost.status).toBe(403);
+    expect(configured.status).toBe(200);
   });
 });
