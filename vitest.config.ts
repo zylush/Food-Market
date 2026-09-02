@@ -1,8 +1,14 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import path from "node:path";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@foodiesfeed/contracts": path.resolve(process.cwd(), "packages/contracts/src/index.ts"),
+    },
+  },
   esbuild: {
     jsx: "automatic",
   },
