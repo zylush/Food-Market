@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "pretest:e2e": "corepack pnpm --filter @foodiesfeed/web... build",
     "test:e2e": "playwright test",
     "db:generate": "corepack pnpm --filter @foodiesfeed/api prisma:generate",
     "db:migrate": "corepack pnpm --filter @foodiesfeed/api prisma:migrate",

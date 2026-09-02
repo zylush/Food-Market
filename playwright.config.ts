@@ -13,9 +13,9 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "corepack pnpm dev",
+    command: "corepack pnpm --filter @foodiesfeed/web start",
     url: "http://localhost:3000/en",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });
