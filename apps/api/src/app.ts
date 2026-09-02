@@ -91,6 +91,18 @@ function stringField(record: Record<string, unknown>, field: string): string | n
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+function recordField(record: Record<string, unknown>, field: string): Record<string, unknown> | null {
+  const value = record[field];
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function expandableId(record: Record<string, unknown>, field: string): string | null {
+  const expanded = recordField(record, field);
+  return stringField(record, field) ?? (expanded ? stringField(expanded, "id") : null);
+}
+
 function barcodeParam(value: string | string[] | undefined): string {
   if (typeof value !== "string") throw new AppError(ErrorCode.InvalidRequest, 400);
   return normalizeBarcode(value);
@@ -99,13 +111,17 @@ function barcodeParam(value: string | string[] | undefined): string {
 function subscriptionIdForEvent(event: StripeEventRecord): string | null {
   const object = event.data.object;
   const directId = stringField(object, "id");
-  const nestedId = stringField(object, "subscription");
+  const nestedId = expandableId(object, "subscription");
   if (event.type.startsWith("customer.subscription.") && directId) return directId;
-  return nestedId;
+  if (nestedId) return nestedId;
+
+  const parent = recordField(object, "parent");
+  const subscriptionDetails = parent ? recordField(parent, "subscription_details") : null;
+  return subscriptionDetails ? expandableId(subscriptionDetails, "subscription") : null;
 }
 
 function customerIdForEvent(event: StripeEventRecord): string | null {
-  return stringField(event.data.object, "customer");
+  return expandableId(event.data.object, "customer");
 }
 
 export function createApp(dependencies: AppDependencies = {}): express.Express {
