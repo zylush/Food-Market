@@ -100,11 +100,13 @@ test.describe("free product discovery", () => {
       display: getComputedStyle(document.querySelector("h1")!).fontFamily,
       body: getComputedStyle(document.body).fontFamily,
       mono: getComputedStyle(document.querySelector(".eyebrow")!).fontFamily,
+      bundled: Array.from(document.fonts, (font) => font.family),
     }));
 
-    expect(fontFamilies.display).toMatch(/^"?__Archivo_Black_/);
-    expect(fontFamilies.body).toMatch(/^"?__IBM_Plex_Sans_/);
-    expect(fontFamilies.mono).toMatch(/^"?__IBM_Plex_Mono_/);
+    expect(fontFamilies.display).toMatch(/^"Archivo Black"/);
+    expect(fontFamilies.body).toMatch(/^"IBM Plex Sans"/);
+    expect(fontFamilies.mono).toMatch(/^"IBM Plex Mono"/);
+    expect(fontFamilies.bundled).toEqual(expect.arrayContaining(["Archivo Black", "IBM Plex Sans", "IBM Plex Mono"]));
   });
 
   test("serves the localized offline shell for an uncached navigation", async ({ page, context }) => {

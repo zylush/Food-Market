@@ -11,9 +11,9 @@
   --tomato: #d65038;
   --corn: #e4b83f;
   --shadow: 0 14px 30px rgba(43, 54, 38, .09);
-  --font-display: "Arial Black", "Archivo Black", Impact, sans-serif;
-  --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", "Cascadia Mono", monospace;
+  --font-display: var(--font-archivo-black), "Arial Black", Impact, sans-serif;
+  --font-body: var(--font-ibm-plex-sans), "Segoe UI", sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), "Cascadia Mono", monospace;
 }
 
 * { box-sizing: border-box; }
