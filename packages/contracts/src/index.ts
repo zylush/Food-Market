@@ -107,14 +107,16 @@ export interface ApiSuccess<T, M extends object = Record<string, never>> {
   meta: M;
 }
 
-export interface RecentSearch {
-  id: string;
-  displayTerm: string;
-  normalizedTerm: string;
-  locale: Locale;
-  searchedAt: string;
-}
+export const RecentSearchSchema = z
+  .object({
+    id: z.string().min(1),
+    displayTerm: z.string().min(1),
+    normalizedTerm: z.string().min(1),
+    locale: LocaleSchema,
+    searchedAt: z.string().datetime({ offset: true }),
+  })
+  .strict();
+export type RecentSearch = z.infer<typeof RecentSearchSchema>;
 
-export interface CheckoutResult {
-  url: string;
-}
+export const CheckoutResultSchema = z.object({ url: z.string().url() }).strict();
+export type CheckoutResult = z.infer<typeof CheckoutResultSchema>;

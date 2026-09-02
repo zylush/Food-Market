@@ -7,10 +7,10 @@ coverage/
 playwright-report/
 test-results/
 *.log
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
 apps/api/generated/
 apps/api/prisma/dev.db
 apps/api/prisma/*.db-journal
-vercel.json

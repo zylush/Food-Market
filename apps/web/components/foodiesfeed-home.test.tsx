@@ -1,0 +1,56 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { FoodiesFeedHome } from "./FoodiesFeedHome";
+
+function response(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(status >= 400 ? { error: data } : { data }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+describe("FoodiesFeedHome", () => {
+  it("does not search while typing and submits one validated request", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+      calls.push({ url: input, method: init?.method ?? "GET" });
+      if (input.endsWith("/demo-session")) return response({ established: true });
+      if (input.endsWith("/searches/recent")) return response([]);
+      return response([
+        {
+          barcode: "1234567890123",
+          name: "Cocoa spread",
+          brand: "Acme",
+          imageUrl: null,
+          displayLanguage: "en",
+          usedLanguageFallback: false,
+          sourceUrl: "https://world.openfoodfacts.org/product/1234567890123",
+        },
+      ]);
+    }));
+
+    render(<FoodiesFeedHome locale="en" />);
+    await waitFor(() => expect(calls.some((call) => call.url.endsWith("/searches/recent"))).toBe(true));
+    const searchCallsBeforeTyping = calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST").length;
+    fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
+    expect(calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST")).toHaveLength(searchCallsBeforeTyping);
+
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+    await waitFor(() => expect(screen.getByText("Cocoa spread")).toBeInTheDocument());
+    expect(calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST")).toHaveLength(1);
+  });
+
+  it("shows a localized validation message and makes no search request for a one-character query", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      calls.push(input);
+      if (input.endsWith("/demo-session")) return response({ established: true });
+      return response([]);
+    }));
+    render(<FoodiesFeedHome locale="de" />);
+    await waitFor(() => expect(calls.some((call) => call.endsWith("/searches/recent"))).toBe(true));
+    fireEvent.change(screen.getByTestId("search-input"), { target: { value: "x" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Suchen" }).closest("form")!);
+    expect(screen.getByRole("alert")).toHaveTextContent("mindestens zwei");
+    expect(calls.filter((call) => call.endsWith("/searches"))).toHaveLength(0);
+  });
+});

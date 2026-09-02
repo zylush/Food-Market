@@ -1,10 +1,9 @@
 import { ErrorCode } from "@foodiesfeed/contracts";
+import { AppError } from "./errors";
 
-export class InvalidQueryError extends Error {
-  readonly code = ErrorCode.InvalidRequest;
-
+export class InvalidQueryError extends AppError {
   constructor(message = "Search query must contain at least two visible characters") {
-    super(message);
+    super(ErrorCode.InvalidRequest, 400, message);
     this.name = "InvalidQueryError";
   }
 }

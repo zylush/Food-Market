@@ -20,5 +20,17 @@ describe("entitlement mapping", () => {
       currentPeriodEnd: "2026-10-01T00:00:00.000Z",
       cancelAtPeriodEnd: true,
     });
+    expect(toEntitlement(null)).toEqual({
+      canViewNutrition: false,
+      subscriptionStatus: null,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+    });
+    expect(toEntitlement({ status: "past_due" })).toEqual({
+      canViewNutrition: false,
+      subscriptionStatus: "past_due",
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+    });
   });
 });

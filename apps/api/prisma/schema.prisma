@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id               String               @id @db.VarChar(191)
+  email            String               @unique @db.VarChar(191)
+  stripeCustomerId String?              @unique @db.VarChar(191)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  subscription     Subscription?
+  recentSearches   RecentSearch[]
+  webhookEvents    StripeWebhookEvent[]
+
+  @@map("User")
+}
+
+model Subscription {
+  id                   String   @id @default(cuid()) @db.VarChar(191)
+  userId               String   @unique @db.VarChar(191)
+  stripeSubscriptionId String   @unique @db.VarChar(191)
+  stripePriceId        String   @db.VarChar(191)
+  status               String   @db.VarChar(32)
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean  @default(false)
+  syncedAt             DateTime
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([status])
+  @@map("Subscription")
+}
+
+model RecentSearch {
+  id             String   @id @default(cuid()) @db.VarChar(191)
+  userId         String   @db.VarChar(191)
+  displayTerm    String   @db.VarChar(120)
+  normalizedTerm String   @db.VarChar(120)
+  locale         String   @db.VarChar(2)
+  searchedAt     DateTime
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, normalizedTerm, locale])
+  @@index([userId, searchedAt])
+  @@map("RecentSearch")
+}
+
+model StripeWebhookEvent {
+  id              String   @id @db.VarChar(191)
+  userId          String?  @db.VarChar(191)
+  type            String   @db.VarChar(96)
+  stripeCreatedAt DateTime
+  processedAt     DateTime
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([userId, processedAt])
+  @@map("StripeWebhookEvent")
+}

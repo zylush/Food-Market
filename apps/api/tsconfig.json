@@ -3,9 +3,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "dist",
-    "paths": {
-      "@foodiesfeed/contracts": ["../../packages/contracts/src/index.ts"]
-    }
+    "baseUrl": "."
   },
   "include": ["src/**/*.ts", "api/**/*.ts", "prisma/**/*.ts", "generated/**/*.ts"],
   "exclude": ["node_modules", "dist"]
