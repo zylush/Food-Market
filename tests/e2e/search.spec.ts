@@ -126,4 +126,33 @@ test.describe("free product discovery", () => {
       await context.setOffline(false);
     }
   });
+
+  test("never stores checkout return URLs in the service-worker cache", async ({ page }) => {
+    await page.route("**/api/v1/entitlements", async (route) => {
+      await route.fulfill({
+        json: {
+          data: {
+            canViewNutrition: false,
+            subscriptionStatus: null,
+            currentPeriodEnd: null,
+            cancelAtPeriodEnd: false,
+          },
+          meta: {},
+        },
+      });
+    });
+    await page.goto("/en");
+    await expect
+      .poll(() => page.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration())))
+      .toBe(true);
+    await page.evaluate(async () => navigator.serviceWorker.ready);
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+
+    await page.goto("/en/checkout/success?session_id=cs_test_must_not_be_cached");
+    await page.waitForTimeout(500);
+
+    const cached = await page.evaluate(async () => Boolean(await caches.match(window.location.href)));
+    expect(cached).toBe(false);
+  });
 });
