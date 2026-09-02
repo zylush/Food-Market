@@ -93,6 +93,20 @@ test.describe("free product discovery", () => {
       .toBe(true);
   });
 
+  test("self-hosts the three market-label font families", async ({ page }) => {
+    await page.goto("/en");
+
+    const fontFamilies = await page.evaluate(() => ({
+      display: getComputedStyle(document.querySelector("h1")!).fontFamily,
+      body: getComputedStyle(document.body).fontFamily,
+      mono: getComputedStyle(document.querySelector(".eyebrow")!).fontFamily,
+    }));
+
+    expect(fontFamilies.display).toMatch(/^"?__Archivo_Black_/);
+    expect(fontFamilies.body).toMatch(/^"?__IBM_Plex_Sans_/);
+    expect(fontFamilies.mono).toMatch(/^"?__IBM_Plex_Mono_/);
+  });
+
   test("serves the localized offline shell for an uncached navigation", async ({ page, context }) => {
     await page.goto("/fr");
     await expect
