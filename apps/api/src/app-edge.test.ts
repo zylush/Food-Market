@@ -204,7 +204,13 @@ describe("API edge behavior", () => {
   });
 
   it("accepts nested invoice subscription identifiers and never leaks internal errors", async () => {
-    const event = webhookEvent("invoice.paid", { subscription: "sub_demo", customer: "cus_demo" });
+    const event = webhookEvent("invoice.paid", {
+      customer: "cus_demo",
+      parent: {
+        type: "subscription_details",
+        subscription_details: { subscription: "sub_demo" },
+      },
+    });
     const repository = new InMemoryRepository({ demoUser: { stripeCustomerId: "cus_demo" } });
     const response = await request(createApp({ config, gateway: gateway(), repository, stripe: stripeGateway(event) }))
       .post("/v1/webhooks/stripe")
