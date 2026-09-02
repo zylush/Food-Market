@@ -104,6 +104,12 @@ function expandableId(record: Record<string, unknown>, field: string): string | 
   return stringField(record, field) ?? (expanded ? stringField(expanded, "id") : null);
 }
 
+function isJsonParseError(error: unknown): boolean {
+  if (!(error instanceof SyntaxError)) return false;
+  const parserError = error as SyntaxError & { status?: unknown; type?: unknown };
+  return parserError.status === 400 && parserError.type === "entity.parse.failed";
+}
+
 function barcodeParam(value: string | string[] | undefined): string {
   if (typeof value !== "string") throw new AppError(ErrorCode.InvalidRequest, 400);
   return normalizeBarcode(value);
@@ -352,7 +358,11 @@ export function createApp(dependencies: AppDependencies = {}): express.Express {
   );
 
   const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
-    const appError = isAppError(error) ? error : new AppError(ErrorCode.InternalError, 500, undefined, false);
+    const appError = isAppError(error)
+      ? error
+      : isJsonParseError(error)
+        ? new AppError(ErrorCode.InvalidRequest, 400)
+        : new AppError(ErrorCode.InternalError, 500, undefined, false);
     if (appError.status >= 500 && !appError.expose) {
       // Deliberately avoid logging request bodies, cookies, or upstream payloads.
       console.error(JSON.stringify({ code: appError.code }));
