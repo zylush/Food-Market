@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "paths": {
+      "@foodiesfeed/contracts": ["../../packages/contracts/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "api/**/*.ts", "prisma/**/*.ts", "generated/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
