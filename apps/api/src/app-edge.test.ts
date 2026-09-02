@@ -99,6 +99,13 @@ describe("API edge behavior", () => {
     const app = createApp({ config, gateway: gateway(), repository: new InMemoryRepository() });
     const missingJson = await request(app).post("/v1/demo-session").set("Content-Type", "text/plain").send("{}");
     expect(missingJson.status).toBe(415);
+    const malformed = await request(app)
+      .post("/v1/searches")
+      .set("Origin", config.appOrigin)
+      .set("Content-Type", "application/json")
+      .send('{"query":');
+    expect(malformed.status).toBe(400);
+    expect(malformed.body.error.code).toBe("INVALID_REQUEST");
     const recent = await request(app).get("/v1/searches/recent");
     expect(recent.status).toBe(401);
     expect(recent.headers["cache-control"]).toBe("private, no-store");
