@@ -248,6 +248,16 @@ The repository is prepared for two Vercel projects:
 
 Creating Vercel projects, TiDB resources, Stripe products/prices, webhook registrations, deploying, and running a remote migration are external actions and require the operator's interactive account access and approval. No live credentials are stored in this repository; only the canonical public deployment URLs are documented above.
 
+## Operations, recovery, and rollback
+
+`GET /v1/health` is intentionally shallow: it proves that the Express function can start and answer, but it does not probe TiDB, Stripe, or Open Food Facts. Use Vercel request logs together with the Stripe event-delivery view when diagnosing billing. Expected webhook failures use stable error codes and logs never include request bodies, cookies, upstream payloads, or secrets.
+
+For an application regression, select the last known-good `Ready` deployment in the appropriate Vercel project's **Deployments** view and promote it back to Production. Roll back the API before the web application when both changed. Re-run direct `/v1/health` and same-origin `/api/v1/health`, then exercise the affected browser path. A code rollback does not roll back data.
+
+Prisma migrations are forward-only in production. The committed initial migration only creates the MVP tables; do not drop them as part of an application rollback. Future schema changes should ship with a tested forward repair migration and a TiDB recovery plan before deployment. If webhook delivery is interrupted, correct the endpoint or signing-secret configuration, redeploy the API, and resend the existing test event from Stripe. Event IDs are transactionally idempotent, so a successful replay is safe. Rotate any credential that appears in output or a screen capture, update every affected Vercel environment, redeploy, and verify that Stripe has no pending supported events.
+
+The repository owner is the incident owner for this assignment deployment. Keep Vercel, TiDB, and Stripe in test/demo scope; do not switch the application to Stripe live mode without a separate security, identity, support, and billing review.
+
 ## Attribution and limitations
 
 Product data and product images are sourced from [Open Food Facts](https://world.openfoodfacts.org/). Open Food Facts data is available under the [Open Database License](https://opendatacommons.org/licenses/odbl/1-0/), with database attribution/share-alike obligations; images may have separate licenses and are linked from the source product page. FoodiesFeed does not certify accuracy, completeness, translation quality, allergens, dietary suitability, or medical safety.
