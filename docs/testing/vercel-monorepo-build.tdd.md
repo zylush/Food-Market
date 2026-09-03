@@ -25,6 +25,8 @@ As the deployment operator, I want either application to build from its configur
 | Compiled entry GREEN | `corepack pnpm --filter @foodiesfeed/api vercel-build` and wrapper import | PASS | The Vercel hook now runs the verified API build and a JavaScript function wrapper loads its compiled output with a valid default export. |
 | Rewrite RED | `GET https://foodiesfeed-web.vercel.app/api/v1/health` | FAIL | The web rewrite prepended a second `/v1`, producing `/v1/v1/health` upstream and a 404. |
 | Rewrite GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | PASS | The rewrite preserves the client-supplied version segment exactly once; seven deployment tests passed. |
+| Document locale RED | Live browser check across `/en`, `/nl`, `/de`, and `/fr` | FAIL | Translated content rendered, but each document declared `<html lang="en">`. |
+| Document locale GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` and web build | PASS | The locale segment is now the root layout, so each document declares its actual language and all four locale shells pre-render. |
 
 ## Guarantees
 
@@ -38,6 +40,7 @@ As the deployment operator, I want either application to build from its configur
 | 6 | Vercel builds the shared contracts before tracing the serverless function. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 | 7 | Vercel serves the same compiled API artifact validated by the project TypeScript build. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 | 8 | Same-origin `/api/v1/*` requests reach upstream `/v1/*` routes without duplicating the version prefix. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
+| 9 | Localized pages expose the selected locale on the document root for assistive technology. | `apps/api/deployment-config.test.ts` | Internationalization configuration | PASS |
 
 ## Checkpoint evidence
 

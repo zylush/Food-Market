@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 interface PackageManifest {
@@ -51,6 +51,18 @@ describe("clean Vercel monorepo builds", () => {
 
     expect(configSource).toContain('destination: `${apiOrigin}/:path*`');
     expect(configSource).not.toContain('destination: `${apiOrigin}/v1/:path*`');
+  });
+
+  it("renders localized routes from a dynamic root layout", () => {
+    const localeLayout = readFileSync(
+      resolve(process.cwd(), "apps/web/app/[locale]/layout.tsx"),
+      "utf8",
+    );
+
+    expect(existsSync(resolve(process.cwd(), "apps/web/app/layout.tsx"))).toBe(false);
+    expect(localeLayout).toContain('<html lang={locale}');
+    expect(existsSync(resolve(process.cwd(), "apps/web/app/(redirect)/layout.tsx"))).toBe(true);
+    expect(existsSync(resolve(process.cwd(), "apps/web/app/(redirect)/page.tsx"))).toBe(true);
   });
 
   it("uses Node ESM-safe relative imports in deployed API modules", () => {
