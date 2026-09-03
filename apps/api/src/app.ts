@@ -150,7 +150,12 @@ export function createApp(dependencies: AppDependencies = {}): express.Express {
     asyncRoute(async (request, response) => {
       setNoStore(response);
       const signature = request.get("stripe-signature");
-      if (!signature || !Buffer.isBuffer(request.body)) {
+      if (!signature) {
+        console.warn("STRIPE_WEBHOOK_SIGNATURE_MISSING");
+        throw new AppError(ErrorCode.InvalidRequest, 400);
+      }
+      if (!Buffer.isBuffer(request.body)) {
+        console.warn("STRIPE_WEBHOOK_BODY_NOT_RAW");
         throw new AppError(ErrorCode.InvalidRequest, 400);
       }
 
@@ -158,6 +163,7 @@ export function createApp(dependencies: AppDependencies = {}): express.Express {
       try {
         event = stripe.constructEvent(request.body, signature);
       } catch {
+        console.warn("STRIPE_WEBHOOK_SIGNATURE_INVALID");
         throw new AppError(ErrorCode.InvalidRequest, 400);
       }
 
