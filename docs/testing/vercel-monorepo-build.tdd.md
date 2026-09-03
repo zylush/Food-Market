@@ -27,6 +27,8 @@ As the deployment operator, I want either application to build from its configur
 | Rewrite GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | PASS | The rewrite preserves the client-supplied version segment exactly once; seven deployment tests passed. |
 | Document locale RED | Live browser check across `/en`, `/nl`, `/de`, and `/fr` | FAIL | Translated content rendered, but each document declared `<html lang="en">`. |
 | Document locale GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` and web build | PASS | The locale segment is now the root layout, so each document declares its actual language and all four locale shells pre-render. |
+| Raw webhook RED | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | FAIL | The Vercel function enabled request helpers, allowing the platform to parse the Stripe payload before Express could verify its signature against the original bytes. |
+| Raw webhook GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | PASS | The API function now sets `helpers: false`; Express remains responsible for the raw webhook route and subsequent JSON middleware. |
 
 ## Guarantees
 
@@ -41,10 +43,13 @@ As the deployment operator, I want either application to build from its configur
 | 7 | Vercel serves the same compiled API artifact validated by the project TypeScript build. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 | 8 | Same-origin `/api/v1/*` requests reach upstream `/v1/*` routes without duplicating the version prefix. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 | 9 | Localized pages expose the selected locale on the document root for assistive technology. | `apps/api/deployment-config.test.ts` | Internationalization configuration | PASS |
+| 10 | Vercel preserves the exact raw Stripe webhook body required for signature verification. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 
 ## Checkpoint evidence
 
 - RED: `e15167f test: expose clean Vercel monorepo build gap`
 - GREEN: `2edc9e6 fix: build shared contracts in Vercel app roots`
+- Raw webhook RED: `e6a31ed test: require raw webhook body on Vercel`
+- Raw webhook GREEN: `7bb8f05 fix: disable Vercel request body helpers`
 
 Live Vercel health checks remain a separate release verification and are not claimed by these local tests.
