@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Locale, ProductSummary, RecentSearch } from "@foodiesfeed/contracts";
+import { LandingStory } from "./LandingStory";
 import { ProductCard } from "./ProductCard";
 import { PremiumPrompt } from "./PremiumPrompt";
+import { RecentSearches } from "./RecentSearches";
 import { ApiClientError, bootstrapSession, fetchRecentSearches, searchProducts } from "../features/api";
 import { validateSearchInput } from "../features/search-validation";
 import { getDictionary, translate } from "../i18n/dictionaries";
@@ -22,6 +24,8 @@ function errorMessage(locale: Locale, error: unknown): string {
 
 export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale; initialQuery?: string }) {
   const dictionary = getDictionary(locale);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const exampleQueries = [dictionary.searchExampleOne, dictionary.searchExampleTwo, dictionary.searchExampleThree];
   const [query, setQuery] = useState(initialQuery);
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [results, setResults] = useState<ProductSummary[]>([]);
@@ -82,6 +86,12 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
     void executeSearch(validation.query);
   }
 
+  function chooseExample(example: string): void {
+    setQuery(example);
+    setValidationError(false);
+    searchInputRef.current?.focus();
+  }
+
   function selectRecent(item: RecentSearch): void {
     setQuery(item.displayTerm);
     if (item.locale !== locale) {
@@ -93,31 +103,48 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
   }
 
   return (
-    <main>
+    <main id="main-content" className="home-main">
       <section className="hero page-width">
         <div className="hero__copy">
           <p className="eyebrow eyebrow--green">{dictionary.heroEyebrow}</p>
           <h1>{dictionary.heroTitle}</h1>
           <p className="hero__body">{dictionary.heroBody}</p>
         </div>
-        <div className="hero__stamp" aria-label="FoodiesFeed product search">
-          <span>FF</span>
-          <small>FIELD<br />NOTES</small>
+        <div className="hero__specimen" aria-label={dictionary.heroSpecimenLabel}>
+          <div className="hero__specimen-top">
+            <span>{dictionary.brandName}</span>
+            <span className="hero__specimen-seal" aria-hidden="true">ff</span>
+          </div>
+          <p className="hero__specimen-title">{dictionary.heroSpecimenLabel}</p>
+          <div className="hero__specimen-rule" aria-hidden="true" />
+          <dl className="hero__specimen-facts">
+            <div>
+              <dt>{dictionary.heroSpecimenFreeLabel}</dt>
+              <dd>{dictionary.heroSpecimenFreeValue}</dd>
+            </div>
+            <div>
+              <dt>{dictionary.heroSpecimenPremiumLabel}</dt>
+              <dd>{dictionary.heroSpecimenPremiumValue}</dd>
+            </div>
+          </dl>
+          <span className="hero__specimen-code" aria-hidden="true">000 / 100 / FF</span>
         </div>
       </section>
 
       <section className="search-panel page-width" aria-labelledby="search-title">
         <div className="search-panel__topline">
           <span className="section-number">01</span>
-          <span>{dictionary.searchLabel}</span>
+          <span>{dictionary.searchSectionEyebrow}</span>
         </div>
         <h2 id="search-title">{dictionary.searchLabel}</h2>
         <form className="search-form" onSubmit={submitSearch} noValidate>
-          <label htmlFor="product-search">{dictionary.searchLabel}</label>
+          <label className="search-form__label" htmlFor="product-search">{dictionary.searchLabel}</label>
           <div className="search-form__row">
             <input
               id="product-search"
               data-testid="search-input"
+              ref={searchInputRef}
+              type="search"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -134,35 +161,56 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
           <p id="search-hint" className="form-hint">{dictionary.searchHint}</p>
           {validationError ? <p id="search-error" className="inline-error" role="alert">{dictionary.invalidQuery}</p> : null}
         </form>
+        <div className="search-examples" role="group" aria-label={dictionary.searchExamplesLabel}>
+          <span className="search-examples__label">{dictionary.searchExamplesLabel}</span>
+          {exampleQueries.map((example) => (
+            <button key={example} className="query-chip" type="button" onClick={() => chooseExample(example)} disabled={loading}>
+              {example}
+            </button>
+          ))}
+        </div>
       </section>
 
-      <div className="page-width content-grid">
-        <section className="results-section" aria-labelledby="results-title" aria-busy={loading}>
-          <div className="section-heading section-heading--lined">
-            <div>
-              <p className="eyebrow">{submittedQuery ? `QUERY / ${submittedQuery}` : "02 / DISCOVER"}</p>
-              <h2 id="results-title">{dictionary.resultsHeading}</h2>
+      <div className={`page-width content-grid ${submittedQuery ? "content-grid--results" : "content-grid--landing"}`}>
+        {submittedQuery ? (
+          <section className="results-section" aria-labelledby="results-title" aria-busy={loading}>
+            <div className="section-heading section-heading--lined">
+              <div>
+                <p className="eyebrow">{translate(locale, "queryEyebrow", { query: submittedQuery })}</p>
+                <h2 id="results-title">{dictionary.resultsHeading}</h2>
+              </div>
+              {!loading ? <span className="result-count">{translate(locale, "resultCount", { count: results.length })}</span> : null}
             </div>
-            {submittedQuery && !loading ? <span className="result-count">{translate(locale, "resultCount", { count: results.length })}</span> : null}
-          </div>
-          <div aria-live="polite" className="sr-only">{loading ? dictionary.searching : ""}</div>
-          {requestError ? <div className="state-panel state-panel--error" role="alert"><p>{requestError}</p><button className="text-button" type="button" onClick={() => void executeSearch(submittedQuery)}>{dictionary.retry}</button></div> : null}
-          {!loading && !requestError && submittedQuery && results.length === 0 ? (
-            <div className="state-panel" data-testid="no-results"><h3>{dictionary.noResultsTitle}</h3><p>{dictionary.noResultsBody}</p></div>
-          ) : null}
-          <div className="product-grid">
-            {results.map((product) => <ProductCard key={product.barcode} product={product} locale={locale} />)}
-          </div>
-        </section>
+            <div aria-live="polite" className="sr-only">{loading ? dictionary.searching : ""}</div>
+            {requestError ? <div className="state-panel state-panel--error" role="alert"><p>{requestError}</p><button className="text-button" type="button" onClick={() => void executeSearch(submittedQuery)}>{dictionary.retry}</button></div> : null}
+            {!loading && !requestError && results.length === 0 ? (
+              <div className="state-panel" data-testid="no-results"><h3>{dictionary.noResultsTitle}</h3><p>{dictionary.noResultsBody}</p></div>
+            ) : null}
+            {loading ? (
+              <div className="product-grid product-grid--loading" aria-hidden="true">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <div className="shelf-card shelf-card--skeleton" data-testid="result-skeleton" key={`skeleton-${index}`}>
+                    <div className="shelf-card__image-wrap"><span className="skeleton-block skeleton-block--image" /></div>
+                    <div className="shelf-card__body">
+                      <span className="skeleton-block skeleton-block--short" />
+                      <span className="skeleton-block skeleton-block--title" />
+                      <span className="skeleton-block skeleton-block--line" />
+                      <span className="skeleton-block skeleton-block--action" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="product-grid">
+                {results.map((product) => <ProductCard key={product.barcode} product={product} locale={locale} />)}
+              </div>
+            )}
+          </section>
+        ) : <LandingStory locale={locale} />}
 
         <aside className="sidebar">
-          <section className="recent-section" aria-labelledby="recent-title">
-            <div className="section-heading section-heading--small"><p className="eyebrow">03 / MEMORY</p><h2 id="recent-title">{dictionary.recentTitle}</h2></div>
-            {sessionNotice ? <p className="muted-copy">{dictionary.sessionUnavailable}</p> : null}
-            {!sessionNotice && recent.length === 0 ? <p className="muted-copy">{dictionary.recentEmpty}</p> : null}
-            {recent.length > 0 ? <ul className="recent-list">{recent.slice(0, 10).map((item) => <li key={item.id}><button type="button" onClick={() => selectRecent(item)}><span>{item.displayTerm}</span><small>{item.locale.toUpperCase()}</small></button></li>)}</ul> : null}
-          </section>
-          <PremiumPrompt locale={locale} />
+          <RecentSearches locale={locale} recent={recent} sessionNotice={sessionNotice} onSelect={selectRecent} />
+          {submittedQuery ? <div id="premium"><PremiumPrompt locale={locale} /></div> : null}
         </aside>
       </div>
     </main>

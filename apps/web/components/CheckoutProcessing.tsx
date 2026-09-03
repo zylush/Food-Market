@@ -32,7 +32,7 @@ export function CheckoutProcessing({ locale }: { locale: Locale }) {
   }, [checkEntitlement]);
 
   return (
-    <main className="page-width status-page" aria-live="polite">
+    <main id="main-content" className="page-width status-page" aria-live="polite">
       <p className="eyebrow eyebrow--green">CHECKOUT / CONFIRMATION</p>
       <h1>{state === "active" ? dictionary.activeTitle : dictionary.checkoutProcessingTitle}</h1>
       <p>{state === "active" ? dictionary.activeBody : state === "delayed" ? dictionary.checkoutDelayed : dictionary.checkoutProcessingBody}</p>

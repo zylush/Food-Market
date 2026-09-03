@@ -53,6 +53,7 @@ export default async function LocaleLayout({ children, params }: Readonly<{ chil
       <body>
         <RegisterServiceWorker />
         <div className="locale-shell">
+          <a className="skip-link" href="#main-content">{dictionary.skipToContent}</a>
           <SiteHeader locale={locale} />
           {children}
           <footer className="site-footer">{dictionary.footerNote}</footer>

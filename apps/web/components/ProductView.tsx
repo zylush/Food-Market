@@ -60,7 +60,7 @@ export function ProductView({ locale, barcode }: { locale: Locale; barcode: stri
   }, [barcode, dictionary.errorsUpstreamUnavailable, dictionary.productError, dictionary.productNotFound, locale]);
 
   return (
-    <main className="page-width product-page">
+    <main id="main-content" className="page-width product-page">
       <a className="back-link" href={`/${locale}`}>← {dictionary.backToSearch}</a>
       {loading ? <div className="state-panel" role="status">{dictionary.productLoading}</div> : null}
       {error ? <div className="state-panel state-panel--error" role="alert"><p>{error}</p><a className="text-button" href={`/${locale}`}>{dictionary.backToSearch}</a></div> : null}

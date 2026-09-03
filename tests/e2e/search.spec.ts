@@ -26,9 +26,39 @@ test.describe("free product discovery", () => {
     await page.getByTestId("search-input").fill("cocoa");
     await expect.poll(() => searchRequests.length).toBe(0);
     await page.getByRole("button", { name: "Search" }).click();
-    await expect(page.getByText("Cocoa spread")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Cocoa spread" })).toBeVisible();
     expect(searchRequests).toHaveLength(1);
     await expect(page.getByText("Brand Acme")).toBeVisible();
+  });
+
+  test("explains the free and premium paths before turning into a results workspace", async ({ page }) => {
+    const searchRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/api/v1/searches") && request.method() === "POST") searchRequests.push(request.url());
+    });
+
+    await page.goto("/en");
+    await expect(page.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en#search-title");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
+    await expect(page.getByTestId("landing-story")).toBeVisible();
+    await expect(page.getByTestId("premium-preview")).toBeVisible();
+    await page.getByRole("button", { name: "cocoa spread" }).click();
+    await expect(page.getByTestId("search-input")).toHaveValue("cocoa spread");
+    expect(searchRequests).toHaveLength(0);
+
+    await page.getByRole("button", { name: "Search" }).click();
+    await expect(page.getByRole("heading", { name: "Cocoa spread" })).toBeVisible();
+    await expect(page.getByTestId("landing-story")).toHaveCount(0);
+  });
+
+  test("keeps the top navigation available while browsing the landing page", async ({ page }) => {
+    await page.goto("/en");
+    const header = page.locator("header.site-header");
+
+    await expect(header).toHaveCSS("position", "sticky");
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await expect.poll(async () => (await header.boundingBox())?.y).toBe(0);
   });
 
   test("switches the application locale through the visible selector", async ({ page }) => {
@@ -154,5 +184,45 @@ test.describe("free product discovery", () => {
 
     const cached = await page.evaluate(async () => Boolean(await caches.match(window.location.href)));
     expect(cached).toBe(false);
+  });
+});
+
+test.describe("search workspace states", () => {
+  test("keeps four reserved cards visible while a submitted search is loading", async ({ page }) => {
+    await page.route("**/api/v1/demo-session", async (route) => route.fulfill({ json: { data: { established: true }, meta: {} } }));
+    await page.route("**/api/v1/searches/recent", async (route) => route.fulfill({ json: { data: [], meta: {} } }));
+
+    let releaseSearch!: () => void;
+    await page.route("**/api/v1/searches", async (route) => {
+      await new Promise<void>((resolve) => {
+        releaseSearch = resolve;
+      });
+      await route.fulfill({ json: { data: [], meta: { query: "cocoa", locale: "en" } } });
+    });
+
+    await page.goto("/en");
+    await page.getByTestId("search-input").fill("cocoa");
+    await page.getByRole("button", { name: "Search" }).click();
+    await expect(page.getByTestId("result-skeleton").first()).toBeVisible();
+    await expect(page.getByTestId("result-skeleton")).toHaveCount(4);
+
+    releaseSearch();
+    await expect(page.getByTestId("no-results")).toBeVisible();
+  });
+
+  test("shows a localized retry state when the product source is unavailable", async ({ page }) => {
+    await page.route("**/api/v1/demo-session", async (route) => route.fulfill({ json: { data: { established: true }, meta: {} } }));
+    await page.route("**/api/v1/searches/recent", async (route) => route.fulfill({ json: { data: [], meta: {} } }));
+    await page.route("**/api/v1/searches", async (route) => route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "UPSTREAM_UNAVAILABLE" } }),
+    }));
+
+    await page.goto("/en");
+    await page.getByTestId("search-input").fill("cocoa");
+    await page.getByRole("button", { name: "Search" }).click();
+    await expect(page.locator(".state-panel--error")).toContainText("product source is taking a break");
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   });
 });

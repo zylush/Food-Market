@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach } from "vitest";
 import { FoodiesFeedHome } from "./FoodiesFeedHome";
 
 function response(data: unknown, status = 200): Response {
@@ -9,6 +10,55 @@ function response(data: unknown, status = 200): Response {
 }
 
 describe("FoodiesFeedHome", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the landing story and fills an example without submitting", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+      calls.push({ url: input, method: init?.method ?? "GET" });
+      if (input.endsWith("/demo-session")) return response({ established: true });
+      return response([]);
+    }));
+
+    render(<FoodiesFeedHome locale="en" />);
+    await waitFor(() => expect(calls.some((call) => call.url.endsWith("/searches/recent"))).toBe(true));
+
+    expect(screen.getByTestId("landing-story")).toBeInTheDocument();
+    expect(screen.getByTestId("premium-preview")).toBeInTheDocument();
+    const input = screen.getByTestId("search-input");
+    fireEvent.click(screen.getByRole("button", { name: "cocoa spread" }));
+
+    expect(input).toHaveValue("cocoa spread");
+    expect(calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST")).toHaveLength(0);
+  });
+
+  it("keeps recent searches as actionable shelf-memory shortcuts", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+      calls.push({ url: input, method: init?.method ?? "GET" });
+      if (input.endsWith("/demo-session")) return response({ established: true });
+      if (input.endsWith("/searches/recent")) {
+        return response([{
+          id: "recent-1",
+          displayTerm: "oat biscuits",
+          normalizedTerm: "oat biscuits",
+          locale: "en",
+          searchedAt: "2026-09-04T00:00:00.000Z",
+        }]);
+      }
+      return response([]);
+    }));
+
+    render(<FoodiesFeedHome locale="en" />);
+    await waitFor(() => expect(screen.getByRole("region", { name: "Recent searches" })).toBeInTheDocument());
+    fireEvent.click(within(screen.getByRole("region", { name: "Recent searches" })).getByRole("button", { name: /oat biscuits/ }));
+
+    await waitFor(() => expect(screen.getByTestId("no-results")).toBeInTheDocument());
+    expect(calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST")).toHaveLength(1);
+  });
+
   it("does not search while typing and submits one validated request", async () => {
     const calls: Array<{ url: string; method: string }> = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
@@ -36,7 +86,31 @@ describe("FoodiesFeedHome", () => {
 
     fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
     await waitFor(() => expect(screen.getByText("Cocoa spread")).toBeInTheDocument());
+    expect(screen.queryByTestId("landing-story")).not.toBeInTheDocument();
     expect(calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST")).toHaveLength(1);
+  });
+
+  it("holds the result workspace with reserved cards while a search is loading", async () => {
+    const calls: string[] = [];
+    let resolveSearch!: (result: Response) => void;
+    const pendingSearch = new Promise<Response>((resolve) => {
+      resolveSearch = resolve;
+    });
+    vi.stubGlobal("fetch", vi.fn((input: string) => {
+      calls.push(input);
+      if (input.endsWith("/demo-session")) return Promise.resolve(response({ established: true }));
+      if (input.endsWith("/searches/recent")) return Promise.resolve(response([]));
+      return pendingSearch;
+    }));
+
+    render(<FoodiesFeedHome locale="en" />);
+    await waitFor(() => expect(calls.some((call) => call.endsWith("/searches/recent"))).toBe(true));
+    fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getAllByTestId("result-skeleton")).toHaveLength(4));
+    resolveSearch(response([]));
+    await waitFor(() => expect(screen.getByTestId("no-results")).toBeInTheDocument());
   });
 
   it("shows a localized validation message and makes no search request for a one-character query", async () => {
