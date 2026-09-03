@@ -4,6 +4,13 @@ FoodiesFeed is a small full-stack assignment MVP for searching packaged-food pro
 
 The interface uses a market-label visual language: porcelain paper, ink typography, leaf green, tomato red, corn yellow, ruled facts, and product cards that read like grocery shelf labels. The application supports English, Dutch, German, and French and can be installed as a static-shell PWA.
 
+## Live deployment
+
+- Web application: [https://foodiesfeed-web.vercel.app](https://foodiesfeed-web.vercel.app)
+- API health endpoint: [https://foodiesfeed-api.vercel.app/v1/health](https://foodiesfeed-api.vercel.app/v1/health)
+
+The two Vercel projects deploy from this repository's `main` branch. The API function runs in Vercel's Frankfurt region (`fra1`) and uses the migrated TiDB Cloud Starter database in Frankfurt. The web application reaches Express through its same-origin `/api/*` rewrite; browser code never receives the TiDB URL, Stripe secrets, or Open Food Facts adapter configuration.
+
 ## Stack and repository
 
 This is a pnpm TypeScript workspace:
@@ -239,7 +246,7 @@ The repository is prepared for two Vercel projects:
 4. Create/link `foodiesfeed-web` with root directory `apps/web`. Set `API_ORIGIN` to `https://foodiesfeed-api.vercel.app` and deploy. The web project rewrites same-origin `/api/*` requests to that API origin. If either project receives a different stable domain, update the webhook URL, `APP_ORIGIN`, and `API_ORIGIN` before the smoke test.
 5. Complete one test-mode Checkout with synthetic test data. Verify the signed webhook changes the persisted subscription to `active`, confirm `/api/v1/entitlements`, open protected nutrition, switch all four locales, and install the HTTPS PWA. Revoke/cancel the test subscription and verify the next nutrition request returns `403 SUBSCRIPTION_REQUIRED`.
 
-Creating Vercel projects, TiDB resources, Stripe products/prices, webhook registrations, deploying, and running a remote migration are external actions and require the operator’s interactive account access and approval. No live credentials or public deployment URL are stored in this repository.
+Creating Vercel projects, TiDB resources, Stripe products/prices, webhook registrations, deploying, and running a remote migration are external actions and require the operator's interactive account access and approval. No live credentials are stored in this repository; only the canonical public deployment URLs are documented above.
 
 ## Attribution and limitations
 

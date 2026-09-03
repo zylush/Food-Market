@@ -15,7 +15,7 @@ This record documents the RED -> GREEN checkpoints used while building the MVP. 
 The final local verification commands and results are:
 
 ```text
-corepack pnpm test:coverage  -> 90 tests passed; 95.72% statements, 89.36% branches, 93.60% functions, 95.72% lines
+corepack pnpm test:coverage  -> 99 tests passed; 95.72% statements, 89.70% branches, 93.60% functions, 95.72% lines
 corepack pnpm test:e2e       -> 8 Playwright tests passed against a production build
 corepack pnpm typecheck      -> contracts, API, and web passed
 corepack pnpm lint           -> contracts, API, and web passed
@@ -32,9 +32,11 @@ Coverage excludes only generated Prisma output and thin runtime/framework bootst
 - Open Food Facts calls use explicit fields, locale fallback, numeric-null normalization, timeout/retry, and stable upstream errors.
 - Signed demo sessions, strict production origin/content-type checks, malformed JSON, recent-search deduplication, retention, and private cache headers are covered.
 - Nutrition authorization is tested for every non-active status and active access; authorization runs before the upstream nutrition call.
-- Checkout uses only the server Price ID; raw Stripe signature failures, duplicate event delivery, current nested invoice identifiers, mismatched snapshots, and persisted entitlement mapping are covered.
+- Checkout uses only the server Price ID; raw Stripe signature failures, duplicate and out-of-order event delivery, current nested invoice identifiers, mismatched snapshots, and persisted entitlement mapping are covered.
 - Locale persistence, missing images, loading/error/empty states, nutrition tables, premium prompts, explicit-submit search, an active-subscriber nutrition journey, actual self-hosted fonts, 320 px layout, a real service-worker offline navigation, and Checkout cache exclusion are covered with component tests and browser journeys.
 
-## Environment-limited checks
+## Deployment evidence and remaining interactive check
 
-The workspace has a running MySQL 8.0.42 service, but no project `.env` or usable database credentials have been supplied. Therefore `prisma migrate dev/deploy` and the real seed have not yet been run against it. `prisma generate` and the migration/configuration surface were validated successfully. TiDB Cloud and Stripe are awaiting interactive sign-in; remote migration, webhook registration, deployment, and production smoke testing remain open release gates.
+The committed `20260903000000_init` migration was applied to the Frankfurt TiDB Cloud Starter database and the idempotent demo seed was run. SQL inspection confirmed the four application tables, `_prisma_migrations`, one applied migration, and exactly one synthetic demo user. Local MySQL 8 development/test/shadow setup remains documented and intentionally deferred until the operator requests the local walkthrough.
+
+The `foodiesfeed-api` and `foodiesfeed-web` Vercel projects are live. Direct API health, same-origin rewritten health, the manifest, and all four locale shells return successfully; the API response identifies the Frankfurt `fra1` region. Live browser QA covered real Open Food Facts search, public/private response separation, recent-search persistence, locale cookies and document languages, keyboard traversal, and responsive layouts. The Stripe test product, recurring EUR price, and six-event webhook endpoint are configured. The final test-mode Checkout, active-entitlement/nutrition verification, and subsequent test-subscription cancellation remain intentionally unclaimed until the operator explicitly approves the payment step.

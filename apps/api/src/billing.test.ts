@@ -114,6 +114,51 @@ describe("Stripe checkout and webhook boundary", () => {
     expect((await repository.findSubscription("demo-user-0001"))?.status).toBe("active");
   });
 
+  it("keeps Stripe's current snapshot when an older webhook arrives after a newer one", async () => {
+    const repository = new InMemoryRepository({ demoUser: { stripeCustomerId: "cus_demo" } });
+    const events = [
+      {
+        id: "evt_newer_cancelled",
+        type: "customer.subscription.deleted",
+        created: 1_757_000_200,
+        data: { object: { id: "sub_demo", customer: "cus_demo", status: "canceled" } },
+      },
+      {
+        id: "evt_older_active",
+        type: "customer.subscription.updated",
+        created: 1_757_000_100,
+        data: { object: { id: "sub_demo", customer: "cus_demo", status: "active" } },
+      },
+    ];
+    const stripe: StripeGateway = {
+      createCustomer: vi.fn(async () => "cus_demo"),
+      createCheckoutSession: vi.fn(async () => ({ url: "https://checkout.stripe.test/session" })),
+      constructEvent: vi.fn(() => {
+        const event = events.shift();
+        if (!event) throw new Error("No event configured");
+        return event;
+      }),
+      retrieveSubscription: vi.fn(async () => ({ ...fakeSnapshot, status: "canceled" })),
+    };
+    const app = createApp({ repository, stripe });
+
+    const newer = await request(app)
+      .post("/v1/webhooks/stripe")
+      .set("Content-Type", "application/json")
+      .set("stripe-signature", "valid")
+      .send(Buffer.from("{}"));
+    const older = await request(app)
+      .post("/v1/webhooks/stripe")
+      .set("Content-Type", "application/json")
+      .set("stripe-signature", "valid")
+      .send(Buffer.from("{}"));
+
+    expect(newer.body.data.processed).toBe(true);
+    expect(older.body.data.processed).toBe(true);
+    expect(stripe.retrieveSubscription).toHaveBeenCalledTimes(2);
+    expect((await repository.findSubscription("demo-user-0001"))?.status).toBe("canceled");
+  });
+
   it("does not grant access for a webhook-reconciled non-active status", async () => {
     const repository = new InMemoryRepository({ demoUser: { stripeCustomerId: "cus_demo" } });
     const stripe = fakeStripe({ snapshot: { ...fakeSnapshot, status: "past_due" } });
