@@ -108,4 +108,16 @@ describe("clean Vercel monorepo builds", () => {
     expect(schema).toMatch(/moduleFormat\s*=\s*"esm"/);
     expect(schema).toMatch(/importFileExtension\s*=\s*"js"/);
   });
+
+  it("loads the ignored API environment before the standalone seed constructs Prisma", () => {
+    const seedSource = readFileSync(
+      resolve(process.cwd(), "apps/api/prisma/seed.ts"),
+      "utf8",
+    );
+
+    expect(seedSource).toContain('import "dotenv/config";');
+    expect(seedSource.indexOf('import "dotenv/config";')).toBeLessThan(
+      seedSource.indexOf("createPrismaClient(process.env.DATABASE_URL"),
+    );
+  });
 });
