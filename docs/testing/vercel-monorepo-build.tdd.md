@@ -21,6 +21,8 @@ As the deployment operator, I want either application to build from its configur
 | Runtime load | `node -e "Promise.all([import('./dist/src/app.js'), import('./dist/src/db/prisma.js')])..."` | PASS | Compiled application and database modules loaded successfully under Node 24. |
 | Function trace RED | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | FAIL | The API manifest did not define Vercel's `vercel-build` hook; the live builder traced the function before `@foodiesfeed/contracts` existed. |
 | Function trace GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | PASS | Five deployment tests passed after the API added the documented `vercel-build` contract compilation step. |
+| Compiled entry RED | Live Vercel build log | FAIL | Vercel's raw TypeScript function compilation emitted Express request/response diagnostics even though the function became healthy. |
+| Compiled entry GREEN | `corepack pnpm --filter @foodiesfeed/api vercel-build` and wrapper import | PASS | The Vercel hook now runs the verified API build and a JavaScript function wrapper loads its compiled output with a valid default export. |
 
 ## Guarantees
 
@@ -32,6 +34,7 @@ As the deployment operator, I want either application to build from its configur
 | 4 | Vercel's Node ESM runtime can resolve every authored API module import. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 | 5 | Prisma emits `.js` specifiers for its generated ESM client. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 | 6 | Vercel builds the shared contracts before tracing the serverless function. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
+| 7 | Vercel serves the same compiled API artifact validated by the project TypeScript build. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 
 ## Checkpoint evidence
 

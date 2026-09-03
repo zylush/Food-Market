@@ -5,6 +5,11 @@ interface PackageManifest {
   scripts?: Record<string, string>;
 }
 
+interface VercelConfig {
+  builds?: Array<{ src?: string; use?: string }>;
+  routes?: Array<{ src?: string; dest?: string }>;
+}
+
 function readManifest(relativePath: string): PackageManifest {
   return JSON.parse(readFileSync(resolve(process.cwd(), relativePath), "utf8")) as PackageManifest;
 }
@@ -23,8 +28,19 @@ describe("clean Vercel monorepo builds", () => {
     const manifest = readManifest("apps/api/package.json");
 
     expect(manifest.scripts?.["vercel-build"]).toBe(
-      "corepack pnpm --filter @foodiesfeed/contracts build",
+      "corepack pnpm run build",
     );
+  });
+
+  it("serves the API from the verified TypeScript build output", () => {
+    const config = JSON.parse(
+      readFileSync(resolve(process.cwd(), "apps/api/vercel.json"), "utf8"),
+    ) as VercelConfig;
+    const wrapper = readFileSync(resolve(process.cwd(), "apps/api/api/vercel.js"), "utf8");
+
+    expect(config.builds?.[0]).toEqual({ src: "api/vercel.js", use: "@vercel/node" });
+    expect(config.routes?.[0]?.dest).toBe("/api/vercel.js");
+    expect(wrapper.trim()).toBe('export { default } from "../dist/api/index.js";');
   });
 
   it("uses Node ESM-safe relative imports in deployed API modules", () => {
