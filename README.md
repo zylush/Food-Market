@@ -185,6 +185,7 @@ For Vercel, set `DATABASE_URL`, `SESSION_SECRET`, Stripe test values, `APP_ORIGI
 
 ```bash
 corepack pnpm test             # unit, component, and API tests
+corepack pnpm test:db          # resets only configured local foodiesfeed_test and runs real-MySQL integration tests
 corepack pnpm test:coverage    # V8 coverage report with thresholds
 corepack pnpm typecheck
 corepack pnpm lint
@@ -198,7 +199,7 @@ The RED -> GREEN verification record, acceptance-boundary coverage, and environm
 
 The committed Prisma migration is applied with `prisma migrate dev` locally and `prisma migrate deploy` in controlled environments. Migrations never run from an HTTP request.
 
-For a test-database rehearsal, temporarily set `DATABASE_URL` to the `TEST_DATABASE_URL` value before running the migration command; `SHADOW_DATABASE_URL` remains the separate shadow database used by `prisma migrate dev`.
+`corepack pnpm test:db` requires `TEST_DATABASE_URL` to point exactly to a local database named `foodiesfeed_test`. It refuses remote hosts and other database names, then runs `prisma migrate reset --force`, so it irreversibly clears only that dedicated test database before applying the committed migration. Never point `TEST_DATABASE_URL` at development, TiDB Cloud, or any production database. `SHADOW_DATABASE_URL` remains the separate shadow database used by `prisma migrate dev`.
 
 ## API boundary
 

@@ -17,6 +17,7 @@ The final local verification commands and results are:
 
 ```text
 corepack pnpm test:coverage  -> 102 tests passed; 95.73% statements, 89.72% branches, 93.60% functions, 95.73% lines
+corepack pnpm test:db        -> 4 tests passed after a guarded clean reset of local foodiesfeed_test
 corepack pnpm test:e2e       -> 8 Playwright tests passed against a production build
 corepack pnpm typecheck      -> contracts, API, and web passed
 corepack pnpm lint           -> contracts, API, and web passed
@@ -35,6 +36,7 @@ Coverage excludes only generated Prisma output and thin runtime/framework bootst
 - Nutrition authorization is tested for every non-active status and active access; authorization runs before the upstream nutrition call.
 - Checkout bootstraps its own session before requesting billing and uses only the server Price ID; raw Stripe signature failures, duplicate and out-of-order event delivery, current nested invoice identifiers, mismatched snapshots, and persisted entitlement mapping are covered.
 - Locale persistence, missing images, loading/error/empty states, nutrition tables, premium prompts, explicit-submit search, an active-subscriber nutrition journey, actual self-hosted fonts, 320 px layout, a real service-worker offline navigation, and Checkout cache exclusion are covered with component tests and browser journeys.
+- The guarded real-MySQL suite refuses remote hosts and any database not named `foodiesfeed_test`. From a clean migration it proves the exact schema, real seed idempotency, recent-search deduplication/newest-ten retention, subscription persistence, and duplicate webhook-event idempotency through `PrismaRepository`.
 
 ## Deployment and local-environment evidence
 
@@ -49,3 +51,5 @@ After explicit approval, the sole test subscription was canceled immediately. St
 The operator installed the production PWA. Windows application discovery confirmed that FoodiesFeed runs as its own installed Chrome app window, and an interactive standalone journey retried a transient Open Food Facts failure, opened Nutella barcode `3017620422003`, displayed the premium unlock prompt, and did not display a nutrition table. Functional PWA installation and access-state behavior therefore pass; visual-regression comparison remains inconclusive because this repository has no committed screenshot baseline.
 
 Local MySQL 8 is running and all three ignored URLs for development, test, and shadow databases are configured. With explicit approval, a one-time MySQL startup initialization reset only `foodiesfeed@localhost` to the already-stored ignored password and changed it to `caching_sha2_password`; the original option file and Windows service path were restored, the one-time secret-bearing file was removed, and the application account reauthenticated after a normal service restart. `prisma migrate deploy` then applied `20260903000000_init`, two consecutive seed runs succeeded, and direct SQL verification proved the exact five-table set, one completed migration row, exactly one deterministic demo user, and grants limited to the three documented databases.
+
+The dedicated `foodiesfeed_test` database was then reset with explicit action-time consent. Prisma reapplied the committed migration, and all four real-database integration tests passed. The test harness is separate from the fast/coverage suite because it deliberately destroys and recreates only the dedicated local test database.

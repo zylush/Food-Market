@@ -27,6 +27,7 @@ The MVP conforms to the supplied FoodiesFeed build and deployment plan. No requi
 | Prisma and MySQL persistence | PASS | The single committed `20260903000000_init` migration creates `User`, `Subscription`, `RecentSearch`, and `StripeWebhookEvent` with required keys, indexes, and foreign keys. Prisma uses `provider = "mysql"` with the maintained MariaDB adapter. |
 | Deterministic seed | PASS | `demo-user-0001` / `demo@foodiesfeed.local` is upserted. The standalone seed now loads `apps/api/.env`; two consecutive local runs succeeded and direct SQL found exactly one synthetic user. |
 | Local MySQL topology | PASS | `foodiesfeed_dev`, `foodiesfeed_test`, and `foodiesfeed_shadow` exist. The app account uses `caching_sha2_password` and has grants on only those three databases. The committed migration applied once against development; the service reauthenticated after a normal restart. |
+| Clean real-MySQL integration | PASS | The guarded suite refuses remote hosts and any database not named `foodiesfeed_test`, resets that dedicated database, reapplies the committed migration, and passes four tests covering exact schema, real seed idempotency, recent-search retention/deduplication, subscription persistence, and webhook-event idempotency. |
 | Stripe Checkout | PASS | Checkout uses the server-configured recurring Price ID, `mode=subscription`, test-mode credentials, and locale-preserving return URLs. The browser cannot supply a price. |
 | Stripe webhook safety | PASS | Raw bytes are processed before JSON middleware, signatures are verified, six event types are supported, and event IDs plus subscription reconciliation are transactional. Tests cover invalid signatures, duplicates, out-of-order delivery, mismatched snapshots, and current nested invoice shapes. |
 | Premium authorization | PASS | Only persisted status `active` grants access. Every non-active status is tested. A real test Checkout produced active entitlement and the twelve-field nutrition allowlist; after cancellation, the webhook returned `200`, entitlement became canceled, and nutrition returned `403 SUBSCRIPTION_REQUIRED`. |
@@ -56,6 +57,7 @@ The MVP conforms to the supplied FoodiesFeed build and deployment plan. No requi
 ```text
 corepack pnpm test:coverage      102/102 tests; 95.73% statements, 89.72% branches,
                                  93.60% functions, 95.73% lines
+corepack pnpm test:db            4/4 clean local-MySQL integration tests PASS
 corepack pnpm typecheck          PASS
 corepack pnpm lint               PASS
 corepack pnpm build              PASS (API plus 20 Next.js pages)
