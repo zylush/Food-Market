@@ -2,7 +2,11 @@
   "version": 2,
   "regions": ["fra1"],
   "builds": [
-    { "src": "api/vercel.js", "use": "@vercel/node" }
+    {
+      "src": "api/vercel.js",
+      "use": "@vercel/node",
+      "config": { "helpers": false }
+    }
   ],
   "routes": [
     { "src": "/(.*)", "dest": "/api/vercel.js" }
