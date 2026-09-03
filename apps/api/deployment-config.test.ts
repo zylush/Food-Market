@@ -6,7 +6,11 @@ interface PackageManifest {
 }
 
 interface VercelConfig {
-  builds?: Array<{ src?: string; use?: string }>;
+  builds?: Array<{
+    src?: string;
+    use?: string;
+    config?: { helpers?: boolean };
+  }>;
   routes?: Array<{ src?: string; dest?: string }>;
 }
 
@@ -38,9 +42,17 @@ describe("clean Vercel monorepo builds", () => {
     ) as VercelConfig;
     const wrapper = readFileSync(resolve(process.cwd(), "apps/api/api/vercel.js"), "utf8");
 
-    expect(config.builds?.[0]).toEqual({ src: "api/vercel.js", use: "@vercel/node" });
+    expect(config.builds?.[0]).toMatchObject({ src: "api/vercel.js", use: "@vercel/node" });
     expect(config.routes?.[0]?.dest).toBe("/api/vercel.js");
     expect(wrapper.trim()).toBe('export { default } from "../dist/api/index.js";');
+  });
+
+  it("preserves the raw request body for Stripe signature verification", () => {
+    const config = JSON.parse(
+      readFileSync(resolve(process.cwd(), "apps/api/vercel.json"), "utf8"),
+    ) as VercelConfig;
+
+    expect(config.builds?.[0]?.config?.helpers).toBe(false);
   });
 
   it("preserves the versioned API path exactly once in the web rewrite", () => {
