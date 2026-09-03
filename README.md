@@ -179,7 +179,7 @@ Local app/tests  → local MySQL 8
 Vercel demo      → TiDB Cloud MySQL-compatible database
 ```
 
-For Vercel, set `DATABASE_URL`, `SESSION_SECRET`, Stripe test values, `APP_ORIGIN`, and the Open Food Facts values in the Vercel project’s environment-variable settings. Do not commit the TiDB Cloud URL or any Stripe secret. Local `TEST_DATABASE_URL` and `SHADOW_DATABASE_URL` are not normally needed by `prisma migrate deploy` in Vercel.
+For Vercel, set `DATABASE_URL`, `SESSION_SECRET`, Stripe test values, `APP_ORIGIN`, and the Open Food Facts values in the Vercel project’s environment-variable settings. Set the non-secret platform flag `NODEJS_HELPERS=0` for the API project so Express receives Stripe webhook bodies as unmodified bytes for signature verification. Do not commit the TiDB Cloud URL or any Stripe secret. Local `TEST_DATABASE_URL` and `SHADOW_DATABASE_URL` are not normally needed by `prisma migrate deploy` in Vercel.
 
 ## Commands
 
@@ -242,7 +242,7 @@ The repository is prepared for two Vercel projects:
 
 1. Create a Frankfurt TiDB Cloud Starter cluster/database and retain its `sslaccept=strict` MySQL URL outside source control. Apply the committed migration with `corepack pnpm db:migrate:deploy`, then run the idempotent seed.
 2. In Stripe test mode, create the `FoodiesFeed Premium` product and a recurring EUR Price of €4.99/month. Register `https://foodiesfeed-api.vercel.app/v1/webhooks/stripe` for the supported subscription and invoice events and retain the resulting Price ID, test secret key, and signing secret outside source control.
-3. Create/link `foodiesfeed-api` with root directory `apps/api`. Set the server-only variables from `.env.example`, including the TiDB URL, Stripe test values, a generated 32+ character session secret, and the final HTTPS web origin. Deploy the `api/index.ts` function in Frankfurt (`fra1`).
+3. Create/link `foodiesfeed-api` with root directory `apps/api`. Set the server-only variables from `.env.example`, including the TiDB URL, Stripe test values, a generated 32+ character session secret, the final HTTPS web origin, and `NODEJS_HELPERS=0`. Deploy the `api/index.ts` function in Frankfurt (`fra1`).
 4. Create/link `foodiesfeed-web` with root directory `apps/web`. Set `API_ORIGIN` to `https://foodiesfeed-api.vercel.app` and deploy. The web project rewrites same-origin `/api/*` requests to that API origin. If either project receives a different stable domain, update the webhook URL, `APP_ORIGIN`, and `API_ORIGIN` before the smoke test.
 5. Complete one test-mode Checkout with synthetic test data. Verify the signed webhook changes the persisted subscription to `active`, confirm `/api/v1/entitlements`, open protected nutrition, switch all four locales, and install the HTTPS PWA. Revoke/cancel the test subscription and verify the next nutrition request returns `403 SUBSCRIPTION_REQUIRED`.
 
