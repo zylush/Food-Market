@@ -82,6 +82,7 @@ describe("Stripe checkout and webhook boundary", () => {
   it("rejects invalid webhook signatures without changing entitlement", async () => {
     const repository = new InMemoryRepository({ demoUser: { stripeCustomerId: "cus_demo" } });
     const stripe = fakeStripe({ invalidSignature: true });
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const response = await request(createApp({ repository, stripe }))
       .post("/v1/webhooks/stripe")
       .set("Content-Type", "application/json")
@@ -89,7 +90,9 @@ describe("Stripe checkout and webhook boundary", () => {
       .send(Buffer.from("{}"));
 
     expect(response.status).toBe(400);
+    expect(warning).toHaveBeenCalledWith("STRIPE_WEBHOOK_SIGNATURE_INVALID");
     expect(await repository.findSubscription("demo-user-0001")).toBeNull();
+    warning.mockRestore();
   });
 
   it("processes an active webhook once and acknowledges duplicate delivery", async () => {

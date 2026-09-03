@@ -239,7 +239,11 @@ describe("API edge behavior", () => {
 
   it("requires a raw signed webhook body", async () => {
     const app = createApp({ config, gateway: gateway(), repository: new InMemoryRepository(), stripe: stripeGateway(webhookEvent("ignored", {})) });
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     expect((await request(app).post("/v1/webhooks/stripe").set("stripe-signature", "valid").send("{}"))).toMatchObject({ status: 400 });
     expect((await request(app).post("/v1/webhooks/stripe").set("Content-Type", "application/json").send(Buffer.from("{}")))).toMatchObject({ status: 400 });
+    expect(warning).toHaveBeenCalledWith("STRIPE_WEBHOOK_BODY_NOT_RAW");
+    expect(warning).toHaveBeenCalledWith("STRIPE_WEBHOOK_SIGNATURE_MISSING");
+    warning.mockRestore();
   });
 });
