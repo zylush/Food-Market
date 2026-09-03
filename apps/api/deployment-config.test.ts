@@ -19,6 +19,14 @@ describe("clean Vercel monorepo builds", () => {
     },
   );
 
+  it("builds shared contracts before Vercel traces the API function", () => {
+    const manifest = readManifest("apps/api/package.json");
+
+    expect(manifest.scripts?.["vercel-build"]).toBe(
+      "corepack pnpm --filter @foodiesfeed/contracts build",
+    );
+  });
+
   it("uses Node ESM-safe relative imports in deployed API modules", () => {
     const runtimeModules = [
       "apps/api/api/index.ts",

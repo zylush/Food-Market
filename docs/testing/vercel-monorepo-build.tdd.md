@@ -19,6 +19,8 @@ As the deployment operator, I want either application to build from its configur
 | Runtime RED | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | FAIL | The deployed API modules had 25 extensionless relative imports and the Prisma client lacked Node ESM import settings. The corresponding Vercel function failed with `ERR_MODULE_NOT_FOUND`. |
 | Runtime GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | PASS | Four deployment tests passed after authored imports and generated Prisma imports became Node ESM-safe. |
 | Runtime load | `node -e "Promise.all([import('./dist/src/app.js'), import('./dist/src/db/prisma.js')])..."` | PASS | Compiled application and database modules loaded successfully under Node 24. |
+| Function trace RED | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | FAIL | The API manifest did not define Vercel's `vercel-build` hook; the live builder traced the function before `@foodiesfeed/contracts` existed. |
+| Function trace GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | PASS | Five deployment tests passed after the API added the documented `vercel-build` contract compilation step. |
 
 ## Guarantees
 
@@ -29,6 +31,7 @@ As the deployment operator, I want either application to build from its configur
 | 3 | The complete workspace still produces production artifacts. | `corepack pnpm build` | Build integration | PASS |
 | 4 | Vercel's Node ESM runtime can resolve every authored API module import. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 | 5 | Prisma emits `.js` specifiers for its generated ESM client. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
+| 6 | Vercel builds the shared contracts before tracing the serverless function. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 
 ## Checkpoint evidence
 
