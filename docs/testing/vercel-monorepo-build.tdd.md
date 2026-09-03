@@ -23,6 +23,8 @@ As the deployment operator, I want either application to build from its configur
 | Function trace GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | PASS | Five deployment tests passed after the API added the documented `vercel-build` contract compilation step. |
 | Compiled entry RED | Live Vercel build log | FAIL | Vercel's raw TypeScript function compilation emitted Express request/response diagnostics even though the function became healthy. |
 | Compiled entry GREEN | `corepack pnpm --filter @foodiesfeed/api vercel-build` and wrapper import | PASS | The Vercel hook now runs the verified API build and a JavaScript function wrapper loads its compiled output with a valid default export. |
+| Rewrite RED | `GET https://foodiesfeed-web.vercel.app/api/v1/health` | FAIL | The web rewrite prepended a second `/v1`, producing `/v1/v1/health` upstream and a 404. |
+| Rewrite GREEN | `corepack pnpm exec vitest run apps/api/deployment-config.test.ts` | PASS | The rewrite preserves the client-supplied version segment exactly once; seven deployment tests passed. |
 
 ## Guarantees
 
@@ -35,6 +37,7 @@ As the deployment operator, I want either application to build from its configur
 | 5 | Prisma emits `.js` specifiers for its generated ESM client. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 | 6 | Vercel builds the shared contracts before tracing the serverless function. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 | 7 | Vercel serves the same compiled API artifact validated by the project TypeScript build. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
+| 8 | Same-origin `/api/v1/*` requests reach upstream `/v1/*` routes without duplicating the version prefix. | `apps/api/deployment-config.test.ts` | Deployment configuration | PASS |
 
 ## Checkpoint evidence
 

@@ -4,7 +4,7 @@ const nextConfig = {
   poweredByHeader: false,
   async rewrites() {
     const apiOrigin = process.env.API_ORIGIN || "http://localhost:4000";
-    return [{ source: "/api/:path*", destination: `${apiOrigin}/v1/:path*` }];
+    return [{ source: "/api/:path*", destination: `${apiOrigin}/:path*` }];
   },
   async headers() {
     return [

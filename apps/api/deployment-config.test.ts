@@ -43,6 +43,16 @@ describe("clean Vercel monorepo builds", () => {
     expect(wrapper.trim()).toBe('export { default } from "../dist/api/index.js";');
   });
 
+  it("preserves the versioned API path exactly once in the web rewrite", () => {
+    const configSource = readFileSync(
+      resolve(process.cwd(), "apps/web/next.config.mjs"),
+      "utf8",
+    );
+
+    expect(configSource).toContain('destination: `${apiOrigin}/:path*`');
+    expect(configSource).not.toContain('destination: `${apiOrigin}/v1/:path*`');
+  });
+
   it("uses Node ESM-safe relative imports in deployed API modules", () => {
     const runtimeModules = [
       "apps/api/api/index.ts",
