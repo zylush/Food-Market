@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Locale } from "@foodiesfeed/contracts";
-import { createCheckout } from "../features/api";
+import { bootstrapSession, createCheckout } from "../features/api";
 import { getDictionary } from "../i18n/dictionaries";
 
 export function PremiumPrompt({ locale }: { locale: Locale }) {
@@ -14,6 +14,7 @@ export function PremiumPrompt({ locale }: { locale: Locale }) {
     setLoading(true);
     setError(false);
     try {
+      await bootstrapSession();
       const result = await createCheckout(locale);
       window.location.assign(result.url);
     } catch {
