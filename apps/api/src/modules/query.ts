@@ -1,5 +1,5 @@
 import { ErrorCode } from "@foodiesfeed/contracts";
-import { AppError } from "./errors";
+import { AppError } from "./errors.js";
 
 export class InvalidQueryError extends AppError {
   constructor(message = "Search query must contain at least two visible characters") {

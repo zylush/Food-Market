@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import type { Locale } from "@foodiesfeed/contracts";
-import type { UserRecord } from "../db/repository";
+import type { UserRecord } from "../db/repository.js";
 
 export interface StripeSubscriptionSnapshot {
   stripeSubscriptionId: string;

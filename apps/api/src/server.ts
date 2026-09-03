@@ -1,10 +1,10 @@
 import "dotenv/config";
-import { createApp } from "./app";
-import { loadConfig } from "./config";
-import { createPrismaRepository } from "./db/prisma";
-import { InMemoryRepository } from "./db/repository";
-import { OpenFoodFactsHttpGateway } from "./integrations/open-food-facts";
-import { StripeApiGateway, UnavailableStripeGateway } from "./integrations/stripe";
+import { createApp } from "./app.js";
+import { loadConfig } from "./config.js";
+import { createPrismaRepository } from "./db/prisma.js";
+import { InMemoryRepository } from "./db/repository.js";
+import { OpenFoodFactsHttpGateway } from "./integrations/open-food-facts.js";
+import { StripeApiGateway, UnavailableStripeGateway } from "./integrations/stripe.js";
 
 const config = loadConfig();
 const database = config.databaseUrl ? createPrismaRepository(config.databaseUrl) : null;

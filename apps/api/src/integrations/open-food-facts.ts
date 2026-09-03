@@ -6,7 +6,7 @@ import {
   type NutritionDetails,
   type ProductSummary,
 } from "@foodiesfeed/contracts";
-import { AppError } from "../modules/errors";
+import { AppError } from "../modules/errors.js";
 
 export interface OpenFoodFactsGateway {
   search(input: { query: string; locale: Locale; limit: number }): Promise<ProductSummary[]>;

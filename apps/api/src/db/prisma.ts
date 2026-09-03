@@ -1,6 +1,6 @@
-import { PrismaClient } from "../../generated/client";
+import { PrismaClient } from "../../generated/client.js";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import { PrismaRepository, type PrismaLikeClient, type Repository } from "./repository";
+import { PrismaRepository, type PrismaLikeClient, type Repository } from "./repository.js";
 
 interface MariaDbConnectionConfig {
   host: string;

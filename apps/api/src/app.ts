@@ -9,21 +9,21 @@ import {
   SearchRequestSchema,
   type Locale,
 } from "@foodiesfeed/contracts";
-import { loadConfig, type AppConfig } from "./config";
-import { InMemoryRepository, type Repository } from "./db/repository";
+import { loadConfig, type AppConfig } from "./config.js";
+import { InMemoryRepository, type Repository } from "./db/repository.js";
 import {
   OpenFoodFactsHttpGateway,
   type OpenFoodFactsGateway,
-} from "./integrations/open-food-facts";
+} from "./integrations/open-food-facts.js";
 import {
   UnavailableStripeGateway,
   type StripeEventRecord,
   type StripeGateway,
-} from "./integrations/stripe";
-import { AppError, isAppError, messageKeyForCode } from "./modules/errors";
-import { canViewNutrition, toEntitlement } from "./modules/entitlements";
-import { normalizeBarcode, normalizeSearchQuery } from "./modules/query";
-import { readCookie, serializeSessionCookie, signDemoSession, verifyDemoSession } from "./middleware/session";
+} from "./integrations/stripe.js";
+import { AppError, isAppError, messageKeyForCode } from "./modules/errors.js";
+import { canViewNutrition, toEntitlement } from "./modules/entitlements.js";
+import { normalizeBarcode, normalizeSearchQuery } from "./modules/query.js";
+import { readCookie, serializeSessionCookie, signDemoSession, verifyDemoSession } from "./middleware/session.js";
 
 const SUPPORTED_WEBHOOK_EVENTS = new Set([
   "checkout.session.completed",

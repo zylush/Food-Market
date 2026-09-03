@@ -18,4 +18,36 @@ describe("clean Vercel monorepo builds", () => {
       expect(manifest.scripts?.prebuild).toBe("corepack pnpm --filter @foodiesfeed/contracts build");
     },
   );
+
+  it("uses Node ESM-safe relative imports in deployed API modules", () => {
+    const runtimeModules = [
+      "apps/api/api/index.ts",
+      "apps/api/prisma/seed.ts",
+      "apps/api/src/app.ts",
+      "apps/api/src/server.ts",
+      "apps/api/src/db/prisma.ts",
+      "apps/api/src/integrations/open-food-facts.ts",
+      "apps/api/src/integrations/stripe.ts",
+      "apps/api/src/modules/query.ts",
+    ];
+    const unsafeImports = runtimeModules.flatMap((modulePath) => {
+      const source = readFileSync(resolve(process.cwd(), modulePath), "utf8");
+      const specifiers = [...source.matchAll(/from\s+["'](\.{1,2}\/[^"']+)["']/g)].map(
+        (match) => match[1],
+      );
+
+      return specifiers
+        .filter((specifier): specifier is string => Boolean(specifier) && !specifier.endsWith(".js"))
+        .map((specifier) => `${modulePath}: ${specifier}`);
+    });
+
+    expect(unsafeImports).toEqual([]);
+  });
+
+  it("generates a Node ESM-compatible Prisma client", () => {
+    const schema = readFileSync(resolve(process.cwd(), "apps/api/prisma/schema.prisma"), "utf8");
+
+    expect(schema).toMatch(/moduleFormat\s*=\s*"esm"/);
+    expect(schema).toMatch(/importFileExtension\s*=\s*"js"/);
+  });
 });
