@@ -19,13 +19,142 @@ The browser talks only to same-origin `/api/v1` paths. Next.js rewrites those pa
 
 ## Local setup
 
-Requirements: Node.js 24.x, Corepack, pnpm 10.x, and a local MySQL 8-compatible server. Create three empty databases named `foodiesfeed_dev`, `foodiesfeed_test`, and `foodiesfeed_shadow`, then copy the root `.env.example` to `apps/api/.env` and replace the local database credentials and session secret. Filtered pnpm scripts run with `apps/api` as their working directory, so a root `.env` is not used by the API or Prisma commands. Real Stripe values are not needed for the automated suite.
+This is the clone-and-run path for reviewers. A reviewer does not need your TiDB Cloud credentials: local development and automated tests use a local MySQL 8-compatible server. The hosted Vercel demo uses TiDB Cloud separately; see [Local versus Vercel](#local-versus-vercel) below.
+
+Requirements: Node.js 24.x, Corepack, pnpm 10.x, and MySQL 8 (or another MySQL 8-compatible server). The commands below are written for PowerShell on Windows; MySQL Workbench can be used instead of the `mysql` command-line client.
+
+### 1. Create isolated local databases
+
+Start the local MySQL server, then connect as an administrative user:
+
+```powershell
+mysql -u root -p
+```
+
+The username `foodiesfeed`, password `LocalOnlyFoodiesFeed2026`, and database names below are examples chosen for consistency. They are not application requirements. A reviewer may use any valid local MySQL username, password, and database names; if they choose different values, they must use those same values in the `CREATE USER`, `GRANT`, and connection-URL statements.
+
+Create separate development, test, and Prisma shadow databases. The same local username and password may be used for all three; only the database name changes.
+
+```sql
+CREATE DATABASE IF NOT EXISTS foodiesfeed_dev
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS foodiesfeed_test
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS foodiesfeed_shadow
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE USER IF NOT EXISTS 'foodiesfeed'@'localhost'
+  IDENTIFIED WITH caching_sha2_password BY 'LocalOnlyFoodiesFeed2026';
+
+GRANT ALL PRIVILEGES ON foodiesfeed_dev.*
+  TO 'foodiesfeed'@'localhost';
+GRANT ALL PRIVILEGES ON foodiesfeed_test.*
+  TO 'foodiesfeed'@'localhost';
+GRANT ALL PRIVILEGES ON foodiesfeed_shadow.*
+  TO 'foodiesfeed'@'localhost';
+
+FLUSH PRIVILEGES;
+```
+
+If the `foodiesfeed` MySQL user already exists with another password or uses the legacy `sha256_password` plugin, run this once instead:
+
+```sql
+ALTER USER 'foodiesfeed'@'localhost'
+  IDENTIFIED WITH caching_sha2_password BY 'LocalOnlyFoodiesFeed2026';
+```
+
+### 2. Create the ignored API environment file
+
+From the repository root, copy the committed template to the API directory:
+
+```powershell
+Copy-Item .env.example apps/api/.env
+```
+
+Filtered pnpm scripts run with `apps/api` as their working directory, so Prisma and the API read `apps/api/.env`. The `.gitignore` excludes `.env` and other secret-bearing environment files; commit only `.env.example`.
+
+Edit `apps/api/.env` and replace the database lines with your local credentials:
+
+```env
+DATABASE_URL=mysql://foodiesfeed:LocalOnlyFoodiesFeed2026@localhost:3306/foodiesfeed_dev
+TEST_DATABASE_URL=mysql://foodiesfeed:LocalOnlyFoodiesFeed2026@localhost:3306/foodiesfeed_test
+SHADOW_DATABASE_URL=mysql://foodiesfeed:LocalOnlyFoodiesFeed2026@localhost:3306/foodiesfeed_shadow
+```
+
+If a database password contains URL characters such as `@`, `:`, `/`, `?`, `#`, or `%`, percent-encode those characters in the connection URL. For example, `p@ssword` becomes `p%40ssword`.
+
+### 3. Generate a session secret
+
+Generate at least 32 random bytes with Node.js:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+```
+
+Copy the printed value into `apps/api/.env`:
+
+```env
+SESSION_SECRET=paste-the-generated-value-here
+```
+
+Use a different value for Vercel. Never commit it or expose it with a `NEXT_PUBLIC_` prefix. `SESSION_SECRET` signs the HttpOnly demo-session cookie.
+
+The seeded demo identity is controlled by `DEMO_USER_EMAIL` and intentionally has no database password:
+
+```env
+DEMO_USER_EMAIL=demo@foodiesfeed.local
+```
+
+The application issues the demo session through its public demo-session endpoint; a reviewer never needs the MySQL password or `SESSION_SECRET`.
+
+### 4. Configure Open Food Facts
+
+Open Food Facts is a remote API, so live product searches require internet access. Read requests do not require an API key, but the application should identify itself with a real contact in its User-Agent:
+
+```env
+OPEN_FOOD_FACTS_BASE_URL=https://world.openfoodfacts.org
+OPEN_FOOD_FACTS_USER_AGENT=FoodiesFeed/0.1 (your-real-email@example.com)
+```
+
+The backend makes the request, not the browser. Tests use deterministic mocked responses, so the automated suite does not depend on Open Food Facts availability or rate limits. See the [Open Food Facts API documentation](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/) for current usage guidance.
+
+### 5. Configure Stripe only when testing billing
+
+Real Stripe values are not required for the automated suite. To test the local Checkout flow, use Stripe **Test mode**:
+
+1. Create a product named `FoodiesFeed Premium`.
+2. Add a recurring monthly price, for example `€4.99/month`.
+3. Copy the recurring Price ID beginning with `price_`.
+4. Copy your test-mode secret key beginning with `sk_test_`.
+
+Put the values in `apps/api/.env`:
+
+```env
+STRIPE_SECRET_KEY=sk_test_your_test_secret_key
+STRIPE_PRICE_ID=price_your_monthly_price_id
+```
+
+For local webhook delivery, install the [Stripe CLI](https://docs.stripe.com/get-started/development-environment?lang=node), authenticate it, and keep this command running in a separate terminal:
+
+```powershell
+stripe login
+stripe listen --forward-to http://localhost:4000/v1/webhooks/stripe
+```
+
+The CLI prints a local signing secret beginning with `whsec_`. Copy it into `apps/api/.env`:
+
+```env
+STRIPE_WEBHOOK_SECRET=whsec_your_local_cli_signing_secret
+```
+
+The local CLI signing secret is different from the signing secret for the deployed Vercel webhook. Keep the `stripe listen` process running while completing a test Checkout. Stripe Checkout subscriptions use a recurring Price ID and `mode=subscription`; webhook signatures must be verified using the raw request body. See [Stripe subscriptions](https://docs.stripe.com/payments/subscriptions) and [Stripe webhook signature verification](https://docs.stripe.com/webhooks/signature).
+
+### 6. Install, migrate, seed, and run
 
 Corepack is used explicitly because this workspace is run in environments where a global pnpm shim may not be writable:
 
 ```powershell
 corepack pnpm install
-Copy-Item .env.example apps/api/.env
 corepack pnpm db:generate
 corepack pnpm db:migrate
 corepack pnpm db:seed
@@ -33,6 +162,17 @@ corepack pnpm dev
 ```
 
 The web app runs at `http://localhost:3000`; the local API runs at `http://localhost:4000`. If `DATABASE_URL` is empty in development, the API uses a memory-only fallback so the public walking skeleton can start. Full recent-search, webhook, and entitlement demonstrations require MySQL; production/Vercel configuration always requires `DATABASE_URL`.
+
+### Local versus Vercel
+
+The same Prisma schema and committed migration run in both environments, but the database URL is environment-specific:
+
+```text
+Local app/tests  → local MySQL 8
+Vercel demo      → TiDB Cloud MySQL-compatible database
+```
+
+For Vercel, set `DATABASE_URL`, `SESSION_SECRET`, Stripe test values, `APP_ORIGIN`, and the Open Food Facts values in the Vercel project’s environment-variable settings. Do not commit the TiDB Cloud URL or any Stripe secret. Local `TEST_DATABASE_URL` and `SHADOW_DATABASE_URL` are not normally needed by `prisma migrate deploy` in Vercel.
 
 ## Commands
 
