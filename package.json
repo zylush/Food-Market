@@ -19,6 +19,7 @@
     "typecheck": "corepack pnpm --filter @foodiesfeed/contracts build && corepack pnpm --filter @foodiesfeed/api typecheck && corepack pnpm --filter @foodiesfeed/web typecheck",
     "lint": "corepack pnpm --filter @foodiesfeed/contracts build && corepack pnpm --filter @foodiesfeed/api lint && corepack pnpm --filter @foodiesfeed/web lint",
     "test": "vitest run",
+    "test:db": "vitest run --config vitest.db.config.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "pretest:e2e": "corepack pnpm --filter @foodiesfeed/web... build",
