@@ -195,7 +195,7 @@ corepack pnpm db:migrate:deploy
 corepack pnpm db:seed
 ```
 
-The RED -> GREEN verification record, acceptance-boundary coverage, and environment-limited checks are in [`docs/testing/foodiesfeed-mvp-tdd.md`](docs/testing/foodiesfeed-mvp-tdd.md).
+The RED -> GREEN verification record, acceptance-boundary coverage, and environment-limited checks are in [`docs/testing/foodiesfeed-mvp-tdd.md`](docs/testing/foodiesfeed-mvp-tdd.md). The bounded Open Food Facts retry/error work has its own evidence in [`docs/testing/search-source-resilience.tdd.md`](docs/testing/search-source-resilience.tdd.md).
 
 The committed Prisma migration is applied with `prisma migrate dev` locally and `prisma migrate deploy` in controlled environments. Migrations never run from an HTTP request.
 
@@ -236,6 +236,24 @@ Local development uses the installed MySQL 8 server with separate development, t
 €4.99/month was chosen as one simple EUR-denominated demonstration price for the European language set; Stripe remains strictly in test mode. The application reads the resulting recurring Price ID from `STRIPE_PRICE_ID`; it does not hardcode a price or trust a browser-supplied Price ID.
 
 The single demo identity is intentionally shared by all evaluators. Its search history and subscription state can therefore be visible to concurrent evaluators. Registration, real accounts, customer portal management, multiple plans, and production live-mode billing are outside this MVP; a customer portal is a follow-up rather than a required release feature.
+
+## Future technical decisions
+
+### Operating instructions
+
+For each final Open Food Facts failure, Vercel emits one `upstream_request_failed` JSON log line. Diagnose with its provider, failure kind, upstream status when available, attempt count, elapsed milliseconds, and optional retry-after seconds. The log deliberately excludes query text, URLs, payloads, cookies, headers, and raw exceptions.
+
+### Technical decision
+
+The MVP keeps its replaceable legacy Open Food Facts search adapter. Each read receives a 5-second abortable timeout and at most one retry after a 250–499 ms jittered delay for a network failure, timeout, or upstream `5xx`. It never retries `429`, other `4xx`, or malformed data. Timeouts return `UPSTREAM_TIMEOUT` (`504`); exhausted provider failures return `UPSTREAM_UNAVAILABLE` (`503`); and valid upstream `Retry-After` values are passed through for `UPSTREAM_RATE_LIMITED` (`429`).
+
+### Internationalization approach
+
+Every user-facing source-failure state remains dictionary-driven across English, Dutch, German, and French. The browser has its own `NETWORK_UNAVAILABLE` state, so a same-origin browser-network failure is not presented as an Open Food Facts outage.
+
+### Known limitations and revisit trigger
+
+There is no persistent stale-result cache, provider replacement, or new third-party infrastructure in this MVP. Revisit a durable public-data cache and provider-adapter decision when upstream outages or rate-limit incidents recur; any cache must remain durable in serverless deployment and keep session, history, entitlement, billing, and nutrition data out of scope.
 
 ## Deployment rehearsal
 
