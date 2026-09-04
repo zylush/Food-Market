@@ -319,7 +319,7 @@ export class OpenFoodFactsHttpGateway implements OpenFoodFactsGateway {
     retryAfter?: RetryAfterWindow;
   }): AppError {
     return new AppError(input.code, input.status, undefined, true, {
-      retryAfter: input.retryAfter?.header,
+      ...(input.retryAfter ? { retryAfter: input.retryAfter.header } : {}),
       logContext: {
         provider: "open_food_facts",
         failureKind: input.failureKind,
@@ -378,6 +378,7 @@ export class OpenFoodFactsHttpGateway implements OpenFoodFactsGateway {
       }
 
       if (response.status === 429) {
+        const retryAfter = parseRetryAfter(response.headers.get("Retry-After"), this.clock());
         throw this.upstreamError({
           code: ErrorCode.UpstreamRateLimited,
           status: 429,
@@ -385,7 +386,7 @@ export class OpenFoodFactsHttpGateway implements OpenFoodFactsGateway {
           upstreamStatus: response.status,
           attempts: attempt,
           elapsedMs: this.elapsedMs(startedAt),
-          retryAfter: parseRetryAfter(response.headers.get("Retry-After"), this.clock()),
+          ...(retryAfter ? { retryAfter } : {}),
         });
       }
       if (!response.ok) {
