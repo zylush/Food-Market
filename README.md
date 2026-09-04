@@ -13,24 +13,85 @@ The two Vercel projects deploy from this repository's `main` branch. The API fun
 
 ## Stack and repository
 
-This is a pnpm TypeScript workspace:
+This is a pnpm TypeScript workspace. The folders you are most likely to need are:
 
 ```text
-apps/web              Next.js 16, React, Tailwind CSS, localized App Router pages
-apps/api              Express 5, Prisma 7.10, Open Food Facts, Stripe test mode
-packages/contracts    Zod schemas and framework-neutral transport contracts
-tests/e2e             Playwright representative browser journeys
+FoodiesFeed/
+├── .env.example              Copy this for your own local settings; never edit it with secrets.
+├── README.md                 This guide.
+├── apps/
+│   ├── web/                  The FoodiesFeed website (Next.js, React, and styling).
+│   │   └── components/       Reusable page pieces such as the header and product cards.
+│   └── api/                  The server (Express, product search, billing, and data access).
+│       ├── src/              Server code.
+│       ├── prisma/           Database schema, migrations, and demo seed data.
+│       └── .env              Your private local settings file; create it from .env.example.
+├── packages/
+│   └── contracts/            Shared validation rules, error codes, and API shapes.
+├── tests/
+│   └── e2e/                  Automated browser journeys (Playwright).
+└── docs/
+    └── testing/              Test plans and RED-to-GREEN evidence.
 ```
+
+Automated unit, component, and API tests sit beside the code they check as `*.test.ts` or `*.test.tsx`; full browser journeys live in `tests/e2e`. You do not need to open these folders to run the basic local preview.
 
 The browser talks only to same-origin `/api/v1` paths. Next.js rewrites those paths to Express. Express is the only Open Food Facts and secret-key Stripe client, and MySQL is the authority for demo sessions, recent searches, and entitlement state.
 
 ## Local setup
 
-This is the clone-and-run path for reviewers. A reviewer does not need your TiDB Cloud credentials: local development and automated tests use a local MySQL 8-compatible server. The hosted Vercel demo uses TiDB Cloud separately; see [Local versus Vercel](#local-versus-vercel) below.
+### Start here: preview FoodiesFeed on your computer
 
-Requirements: Node.js 24.x, Corepack, pnpm 10.x, and MySQL 8 (or another MySQL 8-compatible server). The commands below are written for PowerShell on Windows; MySQL Workbench can be used instead of the `mysql` command-line client.
+This is the recommended path if you want to look around, search for products, or review the landing page. You do **not** need MySQL, Stripe, a Vercel account, or any production credentials for this first preview.
 
-### 1. Create isolated local databases
+#### 1. Install Node.js once
+
+Install [Node.js 24.x](https://nodejs.org/en/download) and accept the default installer options. You do not need to install pnpm separately; the commands below use Node's included Corepack to fetch the right version automatically.
+
+#### 2. Open a terminal in this project folder
+
+On Windows, open the project folder in File Explorer, click the address bar, type `powershell`, and press Enter. On macOS or Linux, open Terminal and change into the project folder.
+
+#### 3. Make your private local settings file
+
+Copy the safe template. Use one command that matches your computer:
+
+```powershell
+# Windows PowerShell
+Copy-Item .env.example apps/api/.env
+```
+
+```bash
+# macOS or Linux Terminal
+cp .env.example apps/api/.env
+```
+
+The new `apps/api/.env` file belongs only on your computer. Do not share or commit it. For a first preview, leave its MySQL and Stripe values blank. If you plan to make live product searches, replace `your-email@example.com` in `OPEN_FOOD_FACTS_USER_AGENT` with an email address you control; it identifies the app to Open Food Facts and is not a login or password.
+
+#### 4. Install and start the app
+
+Run these commands in the same terminal. The first command is needed only the first time.
+
+```powershell
+corepack pnpm install
+corepack pnpm dev
+```
+
+Keep that terminal window open while you use FoodiesFeed.
+
+#### 5. Open FoodiesFeed and stop it when you are done
+
+Open [http://localhost:3000](http://localhost:3000) in your browser. You can search for products normally. To stop the local app later, return to the terminal and press `Ctrl+C`.
+
+This preview uses temporary memory-only data, so recent searches disappear when you stop the app. Billing, subscription testing, database-backed recent searches, and database tests are intentionally unavailable until you complete the optional setup below.
+
+If `corepack` is not recognized, install Node.js 24.x, close the terminal, open it again, and repeat step 4. If the browser cannot open the page, wait until the terminal shows that the app has started, then refresh the page.
+
+### Full local setup (optional)
+
+Continue only if you need saved recent searches, MySQL-backed tests, or Stripe test-mode billing. This advanced path requires MySQL 8 (or another MySQL 8-compatible server). The hosted Vercel demo uses TiDB Cloud separately; see [Local versus Vercel](#local-versus-vercel) below.
+
+#### 1. Create isolated local databases
 
 Start the local MySQL server, then connect as an administrative user:
 
@@ -70,17 +131,9 @@ ALTER USER 'foodiesfeed'@'localhost'
   IDENTIFIED WITH caching_sha2_password BY 'LocalOnlyFoodiesFeed2026';
 ```
 
-### 2. Create the ignored API environment file
+#### 2. Add your local database settings
 
-From the repository root, copy the committed template to the API directory:
-
-```powershell
-Copy-Item .env.example apps/api/.env
-```
-
-Filtered pnpm scripts run with `apps/api` as their working directory, so Prisma and the API read `apps/api/.env`. The `.gitignore` excludes `.env` and other secret-bearing environment files; commit only `.env.example`.
-
-Edit `apps/api/.env` and replace the database lines with your local credentials:
+Start with the quick-preview steps above so `apps/api/.env` already exists. Open that private file and replace its three blank database lines with your local credentials:
 
 ```env
 DATABASE_URL=mysql://foodiesfeed:LocalOnlyFoodiesFeed2026@localhost:3306/foodiesfeed_dev
@@ -90,7 +143,7 @@ SHADOW_DATABASE_URL=mysql://foodiesfeed:LocalOnlyFoodiesFeed2026@localhost:3306/
 
 If a database password contains URL characters such as `@`, `:`, `/`, `?`, `#`, or `%`, percent-encode those characters in the connection URL. For example, `p@ssword` becomes `p%40ssword`.
 
-### 3. Generate a session secret
+#### 3. Choose a local session secret
 
 Generate at least 32 random bytes with Node.js:
 
@@ -114,7 +167,7 @@ DEMO_USER_EMAIL=demo@foodiesfeed.local
 
 The application issues the demo session through its public demo-session endpoint; a reviewer never needs the MySQL password or `SESSION_SECRET`.
 
-### 4. Configure Open Food Facts
+#### 4. Configure Open Food Facts
 
 Open Food Facts is a remote API, so live product searches require internet access. Read requests do not require an API key, but the application should identify itself with a real contact in its User-Agent:
 
@@ -125,7 +178,7 @@ OPEN_FOOD_FACTS_USER_AGENT=FoodiesFeed/0.1 (your-real-email@example.com)
 
 The backend makes the request, not the browser. Tests use deterministic mocked responses, so the automated suite does not depend on Open Food Facts availability or rate limits. See the [Open Food Facts API documentation](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/) for current usage guidance.
 
-### 5. Configure Stripe only when testing billing
+#### 5. Configure Stripe only when testing billing
 
 Real Stripe values are not required for the automated suite. To test the local Checkout flow, use Stripe **Test mode**:
 
@@ -156,9 +209,9 @@ STRIPE_WEBHOOK_SECRET=whsec_your_local_cli_signing_secret
 
 The local CLI signing secret is different from the signing secret for the deployed Vercel webhook. Keep the `stripe listen` process running while completing a test Checkout. Stripe Checkout subscriptions use a recurring Price ID and `mode=subscription`; webhook signatures must be verified using the raw request body. See [Stripe subscriptions](https://docs.stripe.com/payments/subscriptions) and [Stripe webhook signature verification](https://docs.stripe.com/webhooks/signature).
 
-### 6. Install, migrate, seed, and run
+#### 6. Finish the full setup
 
-Corepack is used explicitly because this workspace is run in environments where a global pnpm shim may not be writable:
+If you have not already run the quick-preview install command, run it first. Then generate the database client, create the local tables, add the demo data, and start the app:
 
 ```powershell
 corepack pnpm install
@@ -227,33 +280,63 @@ UI strings live in four version-controlled dictionaries. The manual selector per
 
 The manifest uses standalone display mode, and the service worker caches only shell/static assets, locale pages, icons, and offline HTML. `/api/v1/demo-session`, `/api/v1/searches*`, `/api/v1/entitlements`, `/api/v1/billing/*`, `/api/v1/webhooks/*`, and `/api/v1/products/*/nutrition` are network-only and never service-worker cached. Offline HTML is localized for all four supported locales.
 
-## Database and technical decisions
+## Database technical decisions
 
-This project uses TiDB Cloud as its managed MySQL-compatible database. Prisma uses the standard MySQL connector, and the application relies only on portable relational features. The same schema and migrations can run against a local MySQL instance for development and testing. At runtime, the MariaDB driver adapter explicitly maps TiDB's `sslaccept=strict` URL option to certificate-verified TLS; weakened `sslaccept` modes are rejected.
+### Database choice and connection safety
 
-Local development uses the installed MySQL 8 server with separate development, test, and shadow databases. The initial migration creates `User`, `Subscription`, `RecentSearch`, and `StripeWebhookEvent`, including foreign keys, unique constraints, and indexes. The seed is idempotent and creates exactly `demo@foodiesfeed.local` (or the configured synthetic email).
+TiDB Cloud is the managed, MySQL-compatible database for the deployed demo. Prisma uses the standard MySQL connector and only portable relational features, so the same schema and migrations work with a local MySQL 8-compatible server during development and testing. The MariaDB driver adapter maps TiDB's `sslaccept=strict` option to certificate-verified TLS; weaker `sslaccept` modes are rejected rather than silently accepted.
 
-€4.99/month was chosen as one simple EUR-denominated demonstration price for the European language set; Stripe remains strictly in test mode. The application reads the resulting recurring Price ID from `STRIPE_PRICE_ID`; it does not hardcode a price or trust a browser-supplied Price ID.
+### Local isolation, migrations, and seed data
 
-The single demo identity is intentionally shared by all evaluators. Its search history and subscription state can therefore be visible to concurrent evaluators. Registration, real accounts, customer portal management, multiple plans, and production live-mode billing are outside this MVP; a customer portal is a follow-up rather than a required release feature.
+Local development uses separate development, test, and Prisma shadow databases. The initial migration creates `User`, `Subscription`, `RecentSearch`, and `StripeWebhookEvent`, with the needed foreign keys, unique constraints, and indexes. The seed is idempotent and creates only `demo@foodiesfeed.local` (or the configured synthetic email). Migrations are committed, never run from an HTTP request, and production uses `prisma migrate deploy` rather than local development commands.
+
+## Current technical decisions
+
+These are choices already implemented in the MVP. They are separate from the database choices above and from the deferred decisions below.
+
+### Keep external services on the server
+
+The browser uses only same-origin `/api/v1` routes. Next.js rewrites those routes to Express, which is the only client for Open Food Facts and secret-key Stripe calls. This keeps database URLs, Stripe secrets, and raw upstream responses out of browser code, while public responses remain explicit allowlists.
+
+### Search only after an explicit submit
+
+FoodiesFeed does not search while someone types. A submitted search is easier to understand, prevents an upstream request for every keystroke, and makes rate limiting and error recovery predictable.
+
+### Bound product-source failures instead of letting a search hang
+
+The legacy Open Food Facts text-search endpoint stays behind a replaceable adapter because it is the current endpoint that supports the required plain-text product search. Each request has a 5-second abortable timeout and at most one retry after a 250–499 ms jittered pause for a network failure, timeout, or upstream `5xx`. It deliberately does not retry `429`, other `4xx`, or malformed data.
+
+The API maps a timeout to `UPSTREAM_TIMEOUT` (`504`), an exhausted provider failure to `UPSTREAM_UNAVAILABLE` (`503`), and a valid upstream `Retry-After` value to `UPSTREAM_RATE_LIMITED` (`429`). The web app disables retry during the rate-limit countdown. A browser connection failure is its own `NETWORK_UNAVAILABLE` state, so it is not incorrectly described as an Open Food Facts outage. Every state is translated in English, Dutch, German, and French.
+
+For each final product-source failure, Vercel writes one safe `upstream_request_failed` JSON log line with the provider, failure kind, upstream status when available, attempt count, elapsed milliseconds, and optional retry-after seconds. It intentionally excludes search text, URLs, payloads, cookies, headers, and raw exceptions.
+
+### Make the first local preview low-friction
+
+When `DATABASE_URL` is blank in local development, the API uses temporary in-memory data. This lets someone preview and search FoodiesFeed without installing MySQL or Stripe first. Production requires a database, and the optional full local setup is required for saved search history, billing, and real-MySQL tests.
+
+### Trust the server for premium access
+
+Stripe remains in test mode. The server chooses the recurring Price ID, verifies signed webhook events, and grants premium nutrition only when the stored subscription status is `active`. A browser redirect or client-side state can never grant premium access. The €4.99/month example is a single demonstration price for the supported European language set, not a hard-coded browser value.
+
+### Keep the PWA shell safe offline
+
+The PWA caches only static shell assets, locale pages, icons, and offline HTML. Sessions, searches, entitlements, billing, webhooks, and premium nutrition are always network-only, so protected or personal data never enters the service-worker cache.
+
+### Keep the landing page useful and calm
+
+The top header is sticky. On larger screens it keeps the brand, language picker, and page navigation reachable while someone scrolls; on smaller screens it keeps the brand and language picker in a compact layout. The visual system stays market-label-like—flat colour tokens, ruled surfaces, and simple CSS-built label details—without gradients or decorative generated imagery. Motion is brief and is disabled for people who prefer reduced motion; keyboard users also have a skip link and a clearly visible focus indicator.
 
 ## Future technical decisions
 
-### Operating instructions
+These items are intentionally deferred; they are not partially implemented in the MVP.
 
-For each final Open Food Facts failure, Vercel emits one `upstream_request_failed` JSON log line. Diagnose with its provider, failure kind, upstream status when available, attempt count, elapsed milliseconds, and optional retry-after seconds. The log deliberately excludes query text, URLs, payloads, cookies, headers, and raw exceptions.
+### Durable public-search cache or another provider
 
-### Technical decision
+There is no persistent stale-result cache, provider replacement, or new third-party infrastructure today. Revisit a durable public-data cache and provider-adapter decision when upstream outages or rate-limit incidents recur. Any cache must work in Vercel's serverless environment and must keep session, history, entitlement, billing, and nutrition data out of scope.
 
-The MVP keeps its replaceable legacy Open Food Facts search adapter. Each read receives a 5-second abortable timeout and at most one retry after a 250–499 ms jittered delay for a network failure, timeout, or upstream `5xx`. It never retries `429`, other `4xx`, or malformed data. Timeouts return `UPSTREAM_TIMEOUT` (`504`); exhausted provider failures return `UPSTREAM_UNAVAILABLE` (`503`); and valid upstream `Retry-After` values are passed through for `UPSTREAM_RATE_LIMITED` (`429`).
+### Real accounts and production billing
 
-### Internationalization approach
-
-Every user-facing source-failure state remains dictionary-driven across English, Dutch, German, and French. The browser has its own `NETWORK_UNAVAILABLE` state, so a same-origin browser-network failure is not presented as an Open Food Facts outage.
-
-### Known limitations and revisit trigger
-
-There is no persistent stale-result cache, provider replacement, or new third-party infrastructure in this MVP. Revisit a durable public-data cache and provider-adapter decision when upstream outages or rate-limit incidents recur; any cache must remain durable in serverless deployment and keep session, history, entitlement, billing, and nutrition data out of scope.
+The single demo identity is intentionally shared, so its search history and subscription state can be visible to concurrent evaluators. Registration, individual accounts, a customer portal, multiple plans, and Stripe live mode need a separate identity, security, support, and billing decision before they are added.
 
 ## Deployment rehearsal
 
