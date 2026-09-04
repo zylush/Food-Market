@@ -36,7 +36,7 @@ This record covers the user-approved Search-source resilience patch. It keeps th
 
 | Command | Result |
 | --- | --- |
-| `corepack pnpm test:coverage` | PASS — 26 files / 118 tests; 96.75% statements, 90.13% branches, 94.85% functions, and 96.75% lines. |
+| `corepack pnpm test:coverage` | PASS — 26 files / 118 tests; 96.75% statements, 90.01% branches, 94.85% functions, and 96.75% lines. |
 | `corepack pnpm lint` | PASS |
 | `corepack pnpm typecheck` | PASS |
 | `corepack pnpm build` | PASS — contracts, API, and Next.js production build completed. |
