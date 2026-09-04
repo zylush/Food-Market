@@ -1,7 +1,4 @@
 .planning/
-# Local AI-agent context; never commit these files.
-AGENTS.md
-CLAUDE.md
 node_modules/
 .pnpm-store/
 .next/
