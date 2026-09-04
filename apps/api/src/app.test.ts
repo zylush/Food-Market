@@ -2,8 +2,9 @@ import request from "supertest";
 import { createApp } from "./app";
 import { InMemoryRepository } from "./db/repository";
 import type { OpenFoodFactsGateway } from "./integrations/open-food-facts";
-import type { NutritionDetails } from "@foodiesfeed/contracts";
+import { ErrorCode, type NutritionDetails } from "@foodiesfeed/contracts";
 import type { AppConfig } from "./config";
+import { AppError } from "./modules/errors";
 
 const productionConfig: AppConfig = {
   appOrigin: "https://foodiesfeed-web.vercel.app",
@@ -82,6 +83,51 @@ describe("Express API foundation", () => {
       sourceUrl: "https://world.openfoodfacts.org/product/1234567890123",
     });
     expect(response.body.data[0]).not.toHaveProperty("nutriments");
+  });
+
+  it("forwards a valid provider rate-limit window and logs only safe final context", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const sensitiveQuery = "cocoa with a private note";
+    const sourceError = new AppError(ErrorCode.UpstreamRateLimited, 429, undefined, true, {
+      retryAfter: "7",
+      logContext: {
+        provider: "open_food_facts",
+        failureKind: "http",
+        upstreamStatus: 429,
+        attempts: 1,
+        elapsedMs: 12,
+        retryAfterSeconds: 7,
+      },
+    });
+    const response = await request(createApp({
+      gateway: { ...gateway, search: async () => { throw sourceError; } },
+      repository: new InMemoryRepository(),
+    }))
+      .post("/v1/searches")
+      .set("Origin", "http://localhost:3000")
+      .set("Content-Type", "application/json")
+      .send({ query: sensitiveQuery, locale: "en" });
+
+    expect(response.status).toBe(429);
+    expect(response.headers["retry-after"]).toBe("7");
+    expect(response.body).toEqual({
+      error: { code: "UPSTREAM_RATE_LIMITED", messageKey: "errors.upstreamRateLimited" },
+    });
+    expect(response.text).not.toContain("open_food_facts");
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const logLine = String(errorSpy.mock.calls[0]?.[0]);
+    expect(logLine).not.toContain(sensitiveQuery);
+    expect(JSON.parse(logLine)).toEqual({
+      event: "upstream_request_failed",
+      code: "UPSTREAM_RATE_LIMITED",
+      provider: "open_food_facts",
+      failureKind: "http",
+      upstreamStatus: 429,
+      attempts: 1,
+      elapsedMs: 12,
+      retryAfterSeconds: 7,
+    });
+    errorSpy.mockRestore();
   });
 
   it("establishes a signed demo session and stores accepted searches", async () => {

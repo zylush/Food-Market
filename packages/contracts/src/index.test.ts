@@ -1,4 +1,6 @@
 import {
+  API_ERROR_MESSAGE_KEYS,
+  ErrorCode,
   LocaleSchema,
   ProductSummarySchema,
   SearchRequestSchema,
@@ -29,5 +31,10 @@ describe("shared transport contracts", () => {
       query: "  cocoa  ",
       locale: "en",
     });
+  });
+
+  it("publishes a distinct timeout error for the product source", () => {
+    expect(ErrorCode.UpstreamTimeout).toBe("UPSTREAM_TIMEOUT");
+    expect(API_ERROR_MESSAGE_KEYS[ErrorCode.UpstreamTimeout]).toBe("errors.upstreamTimeout");
   });
 });

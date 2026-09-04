@@ -225,4 +225,47 @@ test.describe("search workspace states", () => {
     await expect(page.locator(".state-panel--error")).toContainText("product source is taking a break");
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   });
+
+  test("shows a distinct timeout message when the product source takes too long", async ({ page }) => {
+    await page.route("**/api/v1/demo-session", async (route) => route.fulfill({ json: { data: { established: true }, meta: {} } }));
+    await page.route("**/api/v1/searches/recent", async (route) => route.fulfill({ json: { data: [], meta: {} } }));
+    await page.route("**/api/v1/searches", async (route) => route.fulfill({
+      status: 504,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "UPSTREAM_TIMEOUT" } }),
+    }));
+
+    await page.goto("/en");
+    await page.getByTestId("search-input").fill("cocoa");
+    await page.getByRole("button", { name: "Search" }).click();
+    await expect(page.locator(".state-panel--error")).toContainText("The product source took too long to respond");
+  });
+
+  test("shows a browser-network message when the same-origin API request cannot be made", async ({ page }) => {
+    await page.route("**/api/v1/demo-session", async (route) => route.fulfill({ json: { data: { established: true }, meta: {} } }));
+    await page.route("**/api/v1/searches/recent", async (route) => route.fulfill({ json: { data: [], meta: {} } }));
+    await page.route("**/api/v1/searches", async (route) => route.abort("failed"));
+
+    await page.goto("/en");
+    await page.getByTestId("search-input").fill("cocoa");
+    await page.getByRole("button", { name: "Search" }).click();
+    await expect(page.locator(".state-panel--error")).toContainText("We could not reach FoodiesFeed. Check your connection and try again.");
+  });
+
+  test("holds the retry action until a forwarded rate-limit window expires", async ({ page }) => {
+    await page.route("**/api/v1/demo-session", async (route) => route.fulfill({ json: { data: { established: true }, meta: {} } }));
+    await page.route("**/api/v1/searches/recent", async (route) => route.fulfill({ json: { data: [], meta: {} } }));
+    await page.route("**/api/v1/searches", async (route) => route.fulfill({
+      status: 429,
+      contentType: "application/json",
+      headers: { "Retry-After": "1" },
+      body: JSON.stringify({ error: { code: "UPSTREAM_RATE_LIMITED" } }),
+    }));
+
+    await page.goto("/en");
+    await page.getByTestId("search-input").fill("cocoa");
+    await page.getByRole("button", { name: "Search" }).click();
+    await expect(page.getByRole("button", { name: "Try again in 1s" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Try again" })).toBeEnabled({ timeout: 3_000 });
+  });
 });

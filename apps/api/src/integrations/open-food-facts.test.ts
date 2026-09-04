@@ -145,6 +145,7 @@ describe("Open Food Facts normalization", () => {
 
   it("uses the legacy keyword endpoint with a small field allowlist and retries one transient failure", async () => {
     const calls: Array<{ url: string; userAgent: string | null }> = [];
+    const sleep = vi.fn(async () => undefined);
     const fetchImpl = vi.fn(async (input: string | URL, init?: RequestInit) => {
       calls.push({ url: String(input), userAgent: new Headers(init?.headers).get("User-Agent") });
       if (calls.length === 1) return new Response("temporary", { status: 503 });
@@ -153,27 +154,70 @@ describe("Open Food Facts normalization", () => {
         headers: { "Content-Type": "application/json" },
       });
     });
-    const gateway = new OpenFoodFactsHttpGateway({ userAgent: "FoodiesFeed/test", fetchImpl, timeoutMs: 100 });
+    const gateway = new OpenFoodFactsHttpGateway({
+      userAgent: "FoodiesFeed/test",
+      fetchImpl,
+      timeoutMs: 100,
+      sleep,
+      random: () => 0.5,
+    });
 
     const products = await gateway.search({ query: "cocoa", locale: "en", limit: 20 });
     expect(products[0]?.name).toBe("Cocoa");
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(375);
     expect(calls[0]?.userAgent).toBe("FoodiesFeed/test");
     expect(calls[0]?.url).toContain("fields=code%2C_id");
   });
 
   it("maps rate limits to a stable error without retrying", async () => {
-    const fetchImpl = vi.fn(async () => new Response("limited", { status: 429 }));
+    const fetchImpl = vi.fn(async () => new Response("limited", { status: 429, headers: { "Retry-After": "7" } }));
     const gateway = new OpenFoodFactsHttpGateway({ userAgent: "FoodiesFeed/test", fetchImpl });
-    await expect(gateway.search({ query: "cocoa", locale: "en", limit: 20 })).rejects.toMatchObject({ code: "UPSTREAM_RATE_LIMITED", status: 429 });
+    await expect(gateway.search({ query: "cocoa", locale: "en", limit: 20 })).rejects.toMatchObject({
+      code: "UPSTREAM_RATE_LIMITED",
+      status: 429,
+      retryAfter: "7",
+      logContext: {
+        provider: "open_food_facts",
+        failureKind: "http",
+        upstreamStatus: 429,
+        attempts: 1,
+        retryAfterSeconds: 7,
+      },
+    });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it("does not retry a non-rate-limited client error", async () => {
     const fetchImpl = vi.fn(async () => new Response("bad request", { status: 400 }));
     const gateway = new OpenFoodFactsHttpGateway({ userAgent: "FoodiesFeed/test", fetchImpl });
-    await expect(gateway.search({ query: "cocoa", locale: "en", limit: 20 })).rejects.toMatchObject({ code: "UPSTREAM_UNAVAILABLE" });
+    await expect(gateway.search({ query: "cocoa", locale: "en", limit: 20 })).rejects.toMatchObject({
+      code: "UPSTREAM_UNAVAILABLE",
+      logContext: { provider: "open_food_facts", failureKind: "http", upstreamStatus: 400, attempts: 1 },
+    });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries abortable timeouts with jitter and returns a distinct timeout outcome", async () => {
+    const sleep = vi.fn(async () => undefined);
+    const fetchImpl = vi.fn((_: string | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("timed out", "AbortError")), { once: true });
+    }));
+    const gateway = new OpenFoodFactsHttpGateway({
+      userAgent: "FoodiesFeed/test",
+      fetchImpl,
+      timeoutMs: 1,
+      sleep,
+      random: () => 0,
+    });
+
+    await expect(gateway.search({ query: "cocoa", locale: "en", limit: 20 })).rejects.toMatchObject({
+      code: ErrorCode.UpstreamTimeout,
+      status: 504,
+      logContext: { provider: "open_food_facts", failureKind: "timeout", attempts: 2 },
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(250);
   });
 
   it("reads public and nutrition product routes with explicit status handling", async () => {
@@ -226,14 +270,32 @@ describe("Open Food Facts normalization", () => {
       .rejects.toMatchObject({ code: ErrorCode.UpstreamMalformed });
 
     const serverErrors = vi.fn(async () => new Response("down", { status: 503 }));
-    await expect(new OpenFoodFactsHttpGateway({ userAgent: "FoodiesFeed/test", fetchImpl: serverErrors })
-      .search({ query: "cocoa", locale: "en", limit: 2 })).rejects.toMatchObject({ code: ErrorCode.UpstreamUnavailable });
+    const serverSleep = vi.fn(async () => undefined);
+    await expect(new OpenFoodFactsHttpGateway({
+      userAgent: "FoodiesFeed/test",
+      fetchImpl: serverErrors,
+      sleep: serverSleep,
+      random: () => 0,
+    }).search({ query: "cocoa", locale: "en", limit: 2 })).rejects.toMatchObject({
+      code: ErrorCode.UpstreamUnavailable,
+      logContext: { provider: "open_food_facts", failureKind: "http", upstreamStatus: 503, attempts: 2 },
+    });
     expect(serverErrors).toHaveBeenCalledTimes(2);
+    expect(serverSleep).toHaveBeenCalledWith(250);
 
     const networkErrors = vi.fn(async () => { throw new Error("offline"); });
-    await expect(new OpenFoodFactsHttpGateway({ userAgent: "FoodiesFeed/test", fetchImpl: networkErrors })
-      .search({ query: "cocoa", locale: "en", limit: 2 })).rejects.toMatchObject({ code: ErrorCode.UpstreamUnavailable });
+    const networkSleep = vi.fn(async () => undefined);
+    await expect(new OpenFoodFactsHttpGateway({
+      userAgent: "FoodiesFeed/test",
+      fetchImpl: networkErrors,
+      sleep: networkSleep,
+      random: () => 0,
+    }).search({ query: "cocoa", locale: "en", limit: 2 })).rejects.toMatchObject({
+      code: ErrorCode.UpstreamUnavailable,
+      logContext: { provider: "open_food_facts", failureKind: "network", attempts: 2 },
+    });
     expect(networkErrors).toHaveBeenCalledTimes(2);
+    expect(networkSleep).toHaveBeenCalledWith(250);
     expect(() => new OpenFoodFactsHttpGateway({ userAgent: "  " })).toThrow("USER_AGENT");
   });
 });

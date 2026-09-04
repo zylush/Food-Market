@@ -19,10 +19,10 @@ const product = {
   sourceUrl: "https://world.openfoodfacts.org/product/1234567890123",
 };
 
-function response(data: unknown, status = 200): Response {
+function response(data: unknown, status = 200, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(status >= 400 ? { error: data } : { data }), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
   });
 }
 
@@ -88,7 +88,7 @@ describe("same-origin API client", () => {
 
   it("maps network and malformed server responses to stable client errors", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
-    await expect(bootstrapSession()).rejects.toMatchObject({ code: "UPSTREAM_UNAVAILABLE", status: 0 });
+    await expect(bootstrapSession()).rejects.toMatchObject({ code: "NETWORK_UNAVAILABLE", status: 0 });
 
     vi.stubGlobal("fetch", vi.fn(async () => response({ code: "SUBSCRIPTION_REQUIRED" }, 403)));
     await expect(fetchNutrition("1234567890123")).rejects.toMatchObject({ code: "SUBSCRIPTION_REQUIRED", status: 403 });
@@ -98,6 +98,13 @@ describe("same-origin API client", () => {
 
     vi.stubGlobal("fetch", vi.fn(async () => response("not-a-list")));
     await expect(searchProducts("cocoa", "en")).rejects.toMatchObject({ code: "INTERNAL_ERROR", status: 502 });
+
+    vi.stubGlobal("fetch", vi.fn(async () => response({ code: "UPSTREAM_RATE_LIMITED" }, 429, { "Retry-After": "8" })));
+    await expect(searchProducts("cocoa", "en")).rejects.toMatchObject({
+      code: "UPSTREAM_RATE_LIMITED",
+      status: 429,
+      retryAfterSeconds: 8,
+    });
 
     vi.stubGlobal("fetch", vi.fn(async () => response([{ ...product, locale: "xx" }])));
     await expect(fetchRecentSearches()).rejects.toThrow();

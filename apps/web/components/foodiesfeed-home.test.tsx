@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { FoodiesFeedHome } from "./FoodiesFeedHome";
+import { getDictionary } from "../i18n/dictionaries";
 
 function response(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(status >= 400 ? { error: data } : { data }), {
@@ -126,5 +127,70 @@ describe("FoodiesFeedHome", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Suchen" }).closest("form")!);
     expect(screen.getByRole("alert")).toHaveTextContent("mindestens zwei");
     expect(calls.filter((call) => call.endsWith("/searches"))).toHaveLength(0);
+  });
+
+  it.each(["en", "nl", "de", "fr"] as const)("shows the source-unavailable state in %s", async (locale) => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.endsWith("/demo-session")) return response({ established: true });
+      if (input.endsWith("/searches/recent")) return response([]);
+      return response({ code: "UPSTREAM_UNAVAILABLE" }, 503);
+    }));
+
+    render(<FoodiesFeedHome locale={locale} />);
+    await waitFor(() => expect(screen.getByTestId("search-input")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
+    fireEvent.submit(screen.getByRole("button", { name: getDictionary(locale).searchButton }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(getDictionary(locale).errorsUpstreamUnavailable));
+  });
+
+  it("shows a source-timeout message instead of the general unavailable state", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.endsWith("/demo-session")) return response({ established: true });
+      if (input.endsWith("/searches/recent")) return response([]);
+      return response({ code: "UPSTREAM_TIMEOUT" }, 504);
+    }));
+
+    render(<FoodiesFeedHome locale="en" />);
+    await waitFor(() => expect(screen.getByTestId("search-input")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The product source took too long to respond. Please try again."));
+  });
+
+  it("separates a browser-network failure from a product-source failure", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+      if (input.endsWith("/demo-session")) return response({ established: true });
+      if (input.endsWith("/searches/recent")) return response([]);
+      if (input.endsWith("/searches") && init?.method === "POST") throw new Error("browser offline");
+      return response([]);
+    }));
+
+    render(<FoodiesFeedHome locale="en" />);
+    await waitFor(() => expect(screen.getByTestId("search-input")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("We could not reach FoodiesFeed. Check your connection and try again."));
+  });
+
+  it("disables retry until a valid rate-limit window expires", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.endsWith("/demo-session")) return response({ established: true });
+      if (input.endsWith("/searches/recent")) return response([]);
+      return new Response(JSON.stringify({ error: { code: "UPSTREAM_RATE_LIMITED" } }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": "1" },
+      });
+    }));
+
+    render(<FoodiesFeedHome locale="en" />);
+    await waitFor(() => expect(screen.getByTestId("search-input")).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Try again in 1s" })).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled(), { timeout: 2_500 });
   });
 });
