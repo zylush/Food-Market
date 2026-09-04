@@ -369,11 +369,15 @@ export function createApp(dependencies: AppDependencies = {}): express.Express {
       : isJsonParseError(error)
         ? new AppError(ErrorCode.InvalidRequest, 400)
         : new AppError(ErrorCode.InternalError, 500, undefined, false);
-    if (appError.status >= 500 && !appError.expose) {
+    if (appError.logContext) {
+      // Deliberately avoid logging request bodies, cookies, upstream payloads, or raw exceptions.
+      console.error(JSON.stringify({ event: "upstream_request_failed", code: appError.code, ...appError.logContext }));
+    } else if (appError.status >= 500 && !appError.expose) {
       // Deliberately avoid logging request bodies, cookies, or upstream payloads.
       console.error(JSON.stringify({ code: appError.code }));
     }
     setNoStore(response, appError.status === 401 || appError.status === 403);
+    if (appError.retryAfter) response.setHeader("Retry-After", appError.retryAfter);
     response.status(appError.status).json({
       error: {
         code: appError.code,

@@ -16,10 +16,18 @@ function errorMessage(locale: Locale, error: unknown): string {
   const keyByCode: Record<string, keyof typeof dictionary> = {
     INVALID_REQUEST: "errorsInvalidRequest",
     UPSTREAM_RATE_LIMITED: "errorsUpstreamRateLimited",
+    UPSTREAM_TIMEOUT: "errorsUpstreamTimeout",
     UPSTREAM_UNAVAILABLE: "errorsUpstreamUnavailable",
+    UPSTREAM_MALFORMED: "errorsUpstreamUnavailable",
+    NETWORK_UNAVAILABLE: "errorsNetworkUnavailable",
     NOT_FOUND: "errorsNotFound",
   };
   return dictionary[keyByCode[error.code] ?? "errorsInternal"];
+}
+
+interface SearchRequestError {
+  message: string;
+  retryUntil: number | null;
 }
 
 export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale; initialQuery?: string }) {
@@ -32,8 +40,24 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
   const [recent, setRecent] = useState<RecentSearch[]>([]);
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState(false);
-  const [requestError, setRequestError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<SearchRequestError | null>(null);
+  const [retryClock, setRetryClock] = useState(() => Date.now());
   const [sessionNotice, setSessionNotice] = useState(false);
+
+  const retryRemainingSeconds = requestError?.retryUntil === null || requestError?.retryUntil === undefined
+    ? 0
+    : Math.max(0, Math.ceil((requestError.retryUntil - retryClock) / 1_000));
+
+  useEffect(() => {
+    const retryUntil = requestError?.retryUntil;
+    if (!retryUntil || retryUntil <= Date.now()) return;
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      setRetryClock(now);
+      if (now >= retryUntil) window.clearInterval(interval);
+    }, 250);
+    return () => window.clearInterval(interval);
+  }, [requestError?.retryUntil]);
 
   useEffect(() => {
     let mounted = true;
@@ -61,6 +85,7 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
   async function executeSearch(nextQuery: string): Promise<void> {
     setLoading(true);
     setRequestError(null);
+    setRetryClock(Date.now());
     setSubmittedQuery(nextQuery);
     try {
       const products = await searchProducts(nextQuery, locale);
@@ -68,7 +93,13 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
       void fetchRecentSearches().then(setRecent).catch(() => undefined);
     } catch (error) {
       setResults([]);
-      setRequestError(errorMessage(locale, error));
+      const retryAfterSeconds = error instanceof ApiClientError && error.code === "UPSTREAM_RATE_LIMITED"
+        ? error.retryAfterSeconds
+        : null;
+      setRequestError({
+        message: errorMessage(locale, error),
+        retryUntil: retryAfterSeconds && retryAfterSeconds > 0 ? Date.now() + retryAfterSeconds * 1_000 : null,
+      });
     } finally {
       setLoading(false);
     }
@@ -182,7 +213,7 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
               {!loading ? <span className="result-count">{translate(locale, "resultCount", { count: results.length })}</span> : null}
             </div>
             <div aria-live="polite" className="sr-only">{loading ? dictionary.searching : ""}</div>
-            {requestError ? <div className="state-panel state-panel--error" role="alert"><p>{requestError}</p><button className="text-button" type="button" onClick={() => void executeSearch(submittedQuery)}>{dictionary.retry}</button></div> : null}
+            {requestError ? <div className="state-panel state-panel--error" role="alert"><p>{requestError.message}</p><button className="text-button" type="button" onClick={() => void executeSearch(submittedQuery)} disabled={retryRemainingSeconds > 0}>{retryRemainingSeconds > 0 ? translate(locale, "retryAfter", { seconds: retryRemainingSeconds }) : dictionary.retry}</button></div> : null}
             {!loading && !requestError && results.length === 0 ? (
               <div className="state-panel" data-testid="no-results"><h3>{dictionary.noResultsTitle}</h3><p>{dictionary.noResultsBody}</p></div>
             ) : null}

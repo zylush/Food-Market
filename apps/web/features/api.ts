@@ -13,7 +13,7 @@ import {
 } from "@foodiesfeed/contracts";
 
 export class ApiClientError extends Error {
-  constructor(readonly code: string, readonly status: number) {
+  constructor(readonly code: string, readonly status: number, readonly retryAfterSeconds: number | null = null) {
     super(code);
     this.name = "ApiClientError";
   }
@@ -21,6 +21,18 @@ export class ApiClientError extends Error {
 
 interface Envelope<T> {
   data: T;
+}
+
+function retryAfterSeconds(value: string | null): number | null {
+  if (!value) return null;
+  const header = value.trim();
+  if (/^\d+$/u.test(header)) {
+    const seconds = Number(header);
+    return Number.isSafeInteger(seconds) ? seconds : null;
+  }
+  const retryAt = Date.parse(header);
+  if (Number.isNaN(retryAt)) return null;
+  return Math.max(0, Math.ceil((retryAt - Date.now()) / 1_000));
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -35,7 +47,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       cache: "no-store",
     });
   } catch {
-    throw new ApiClientError("UPSTREAM_UNAVAILABLE", 0);
+    throw new ApiClientError("NETWORK_UNAVAILABLE", 0);
   }
 
   const body: unknown = await response.json().catch(() => null);
@@ -43,10 +55,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const errorBody = body && typeof body === "object" && !Array.isArray(body) && "error" in body
       ? (body as { error?: { code?: string } }).error
       : undefined;
-    throw new ApiClientError(
-      errorBody?.code ?? "INTERNAL_ERROR",
-      response.status,
-    );
+    const code = errorBody?.code ?? "INTERNAL_ERROR";
+    throw new ApiClientError(code, response.status, code === "UPSTREAM_RATE_LIMITED"
+      ? retryAfterSeconds(response.headers.get("Retry-After"))
+      : null);
   }
   if (!body || typeof body !== "object" || Array.isArray(body) || !("data" in body)) {
     throw new ApiClientError("INTERNAL_ERROR", 502);

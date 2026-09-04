@@ -6,7 +6,7 @@ import {
   type NutritionDetails,
   type ProductSummary,
 } from "@foodiesfeed/contracts";
-import { AppError } from "../modules/errors.js";
+import { AppError, type UpstreamFailureKind } from "../modules/errors.js";
 
 export interface OpenFoodFactsGateway {
   search(input: { query: string; locale: Locale; limit: number }): Promise<ProductSummary[]>;
@@ -16,9 +16,27 @@ export interface OpenFoodFactsGateway {
 
 type UnknownRecord = Record<string, unknown>;
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
+type Sleep = (milliseconds: number) => Promise<void>;
+type Random = () => number;
+type Clock = () => number;
+
+interface JsonResponse {
+  payload: UnknownRecord;
+  attempts: number;
+  elapsedMs: number;
+}
+
+interface RetryAfterWindow {
+  header: string;
+  seconds: number;
+}
 
 const DEFAULT_BASE_URL = "https://world.openfoodfacts.org";
 const SOURCE_ORIGIN = "https://world.openfoodfacts.org";
+const DEFAULT_TIMEOUT_MS = 5_000;
+const MAX_ATTEMPTS = 2;
+const RETRY_DELAY_MIN_MS = 250;
+const RETRY_DELAY_RANGE_MS = 250;
 const PUBLIC_FIELDS = [
   "code",
   "_id",
@@ -41,6 +59,22 @@ const NUTRITION_FIELDS = [
   "serving_size",
   "nutriments",
 ].join(",");
+
+function defaultSleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function parseRetryAfter(value: string | null, nowMs: number): RetryAfterWindow | undefined {
+  if (!value) return undefined;
+  const header = value.trim();
+  if (/^\d+$/u.test(header)) {
+    const seconds = Number(header);
+    return Number.isSafeInteger(seconds) ? { header, seconds } : undefined;
+  }
+  const retryAt = Date.parse(header);
+  if (Number.isNaN(retryAt)) return undefined;
+  return { header, seconds: Math.max(0, Math.ceil((retryAt - nowMs) / 1_000)) };
+}
 
 function asRecord(value: unknown): UnknownRecord | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -200,16 +234,25 @@ export class OpenFoodFactsHttpGateway implements OpenFoodFactsGateway {
   private readonly baseUrl: string;
   private readonly fetchImpl: FetchLike;
   private readonly timeoutMs: number;
+  private readonly sleep: Sleep;
+  private readonly random: Random;
+  private readonly clock: Clock;
 
   constructor(options: {
     baseUrl?: string;
     userAgent: string;
     fetchImpl?: FetchLike;
     timeoutMs?: number;
+    sleep?: Sleep;
+    random?: Random;
+    clock?: Clock;
   }) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/u, "");
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
-    this.timeoutMs = options.timeoutMs ?? 8_000;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.sleep = options.sleep ?? defaultSleep;
+    this.random = options.random ?? Math.random;
+    this.clock = options.clock ?? Date.now;
     if (!options.userAgent.trim()) throw new Error("OPEN_FOOD_FACTS_USER_AGENT is required");
     this.userAgent = options.userAgent;
   }
@@ -226,9 +269,18 @@ export class OpenFoodFactsHttpGateway implements OpenFoodFactsGateway {
       lc: input.locale,
       fields: PUBLIC_FIELDS,
     });
-    const payload = await this.requestJson(`${this.baseUrl}/cgi/search.pl?${params.toString()}`);
+    const response = await this.requestJson(`${this.baseUrl}/cgi/search.pl?${params.toString()}`);
+    const { payload } = response;
     const products = Array.isArray(payload.products) ? payload.products : null;
-    if (!products) throw new AppError(ErrorCode.UpstreamMalformed, 502);
+    if (!products) {
+      throw this.upstreamError({
+        code: ErrorCode.UpstreamMalformed,
+        status: 502,
+        failureKind: "malformed",
+        attempts: response.attempts,
+        elapsedMs: response.elapsedMs,
+      });
+    }
     return products
       .map((product) => normalizeProduct(asRecord(product) ?? {}, input.locale))
       .filter((product): product is ProductSummary => product !== null)
@@ -236,7 +288,7 @@ export class OpenFoodFactsHttpGateway implements OpenFoodFactsGateway {
   }
 
   async getPublicProduct(barcode: string, locale: Locale): Promise<ProductSummary | null> {
-    const payload = await this.requestJson(
+    const { payload } = await this.requestJson(
       `${this.baseUrl}/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${encodeURIComponent(PUBLIC_FIELDS)}`,
     );
     if (payload.status === 0) return null;
@@ -244,45 +296,145 @@ export class OpenFoodFactsHttpGateway implements OpenFoodFactsGateway {
   }
 
   async getNutrition(barcode: string): Promise<NutritionDetails | null> {
-    const payload = await this.requestJson(
+    const { payload } = await this.requestJson(
       `${this.baseUrl}/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${encodeURIComponent(NUTRITION_FIELDS)}`,
     );
     if (payload.status === 0) return null;
     return normalizeNutrition(asRecord(payload.product) ?? {});
   }
 
-  private async requestJson(url: string): Promise<UnknownRecord> {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+  private retryDelayMs(): number {
+    const random = this.random();
+    const fraction = Number.isFinite(random) ? Math.min(Math.max(random, 0), 0.999_999) : 0;
+    return RETRY_DELAY_MIN_MS + Math.floor(fraction * RETRY_DELAY_RANGE_MS);
+  }
+
+  private upstreamError(input: {
+    code: typeof ErrorCode.UpstreamRateLimited | typeof ErrorCode.UpstreamTimeout | typeof ErrorCode.UpstreamUnavailable | typeof ErrorCode.UpstreamMalformed;
+    status: number;
+    failureKind: UpstreamFailureKind;
+    upstreamStatus?: number;
+    attempts: number;
+    elapsedMs: number;
+    retryAfter?: RetryAfterWindow;
+  }): AppError {
+    return new AppError(input.code, input.status, undefined, true, {
+      retryAfter: input.retryAfter?.header,
+      logContext: {
+        provider: "open_food_facts",
+        failureKind: input.failureKind,
+        ...(input.upstreamStatus === undefined ? {} : { upstreamStatus: input.upstreamStatus }),
+        attempts: input.attempts,
+        elapsedMs: input.elapsedMs,
+        ...(input.retryAfter ? { retryAfterSeconds: input.retryAfter.seconds } : {}),
+      },
+    });
+  }
+
+  private elapsedMs(startedAt: number): number {
+    return Math.max(0, this.clock() - startedAt);
+  }
+
+  private async requestJson(url: string): Promise<JsonResponse> {
+    const startedAt = this.clock();
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-      let response: Response;
+      let response: Response | undefined;
+      let failureKind: "timeout" | "network" | undefined;
       try {
         response = await this.fetchImpl(url, {
           headers: { Accept: "application/json", "User-Agent": this.userAgent },
           signal: controller.signal,
         });
-      } catch (error) {
-        if (attempt === 0) continue;
-        throw new AppError(ErrorCode.UpstreamUnavailable, 503);
+      } catch {
+        failureKind = controller.signal.aborted ? "timeout" : "network";
       } finally {
         clearTimeout(timer);
       }
 
-      if (response.status === 429) throw new AppError(ErrorCode.UpstreamRateLimited, 429);
+      if (failureKind) {
+        if (attempt < MAX_ATTEMPTS) {
+          await this.sleep(this.retryDelayMs());
+          continue;
+        }
+        throw this.upstreamError({
+          code: failureKind === "timeout" ? ErrorCode.UpstreamTimeout : ErrorCode.UpstreamUnavailable,
+          status: failureKind === "timeout" ? 504 : 503,
+          failureKind,
+          attempts: attempt,
+          elapsedMs: this.elapsedMs(startedAt),
+        });
+      }
+
+      if (!response) {
+        throw this.upstreamError({
+          code: ErrorCode.UpstreamUnavailable,
+          status: 503,
+          failureKind: "network",
+          attempts: attempt,
+          elapsedMs: this.elapsedMs(startedAt),
+        });
+      }
+
+      if (response.status === 429) {
+        throw this.upstreamError({
+          code: ErrorCode.UpstreamRateLimited,
+          status: 429,
+          failureKind: "http",
+          upstreamStatus: response.status,
+          attempts: attempt,
+          elapsedMs: this.elapsedMs(startedAt),
+          retryAfter: parseRetryAfter(response.headers.get("Retry-After"), this.clock()),
+        });
+      }
       if (!response.ok) {
-        if (response.status >= 500 && attempt === 0) continue;
-        throw new AppError(ErrorCode.UpstreamUnavailable, 503);
+        if (response.status >= 500 && attempt < MAX_ATTEMPTS) {
+          await this.sleep(this.retryDelayMs());
+          continue;
+        }
+        throw this.upstreamError({
+          code: ErrorCode.UpstreamUnavailable,
+          status: 503,
+          failureKind: "http",
+          upstreamStatus: response.status,
+          attempts: attempt,
+          elapsedMs: this.elapsedMs(startedAt),
+        });
       }
+
+      let json: unknown;
       try {
-        const json: unknown = await response.json();
-        const record = asRecord(json);
-        if (!record) throw new AppError(ErrorCode.UpstreamMalformed, 502);
-        return record;
-      } catch (error) {
-        if (error instanceof AppError) throw error;
-        throw new AppError(ErrorCode.UpstreamMalformed, 502);
+        json = await response.json();
+      } catch {
+        throw this.upstreamError({
+          code: ErrorCode.UpstreamMalformed,
+          status: 502,
+          failureKind: "malformed",
+          upstreamStatus: response.status,
+          attempts: attempt,
+          elapsedMs: this.elapsedMs(startedAt),
+        });
       }
+      const payload = asRecord(json);
+      if (!payload) {
+        throw this.upstreamError({
+          code: ErrorCode.UpstreamMalformed,
+          status: 502,
+          failureKind: "malformed",
+          upstreamStatus: response.status,
+          attempts: attempt,
+          elapsedMs: this.elapsedMs(startedAt),
+        });
+      }
+      return { payload, attempts: attempt, elapsedMs: this.elapsedMs(startedAt) };
     }
-    throw new AppError(ErrorCode.UpstreamUnavailable, 503);
+    throw this.upstreamError({
+      code: ErrorCode.UpstreamUnavailable,
+      status: 503,
+      failureKind: "network",
+      attempts: MAX_ATTEMPTS,
+      elapsedMs: this.elapsedMs(startedAt),
+    });
   }
 }

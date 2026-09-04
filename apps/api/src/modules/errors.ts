@@ -4,17 +4,37 @@ import {
   type ErrorCodeValue,
 } from "@foodiesfeed/contracts";
 
+export type UpstreamFailureKind = "timeout" | "network" | "http" | "malformed";
+
+export interface UpstreamFailureLogContext {
+  provider: "open_food_facts";
+  failureKind: UpstreamFailureKind;
+  upstreamStatus?: number;
+  attempts: number;
+  elapsedMs: number;
+  retryAfterSeconds?: number;
+}
+
+interface AppErrorOptions {
+  retryAfter?: string;
+  logContext?: UpstreamFailureLogContext;
+}
+
 export class AppError extends Error {
   readonly code: ErrorCodeValue;
   readonly status: number;
   readonly expose: boolean;
+  readonly retryAfter: string | undefined;
+  readonly logContext: UpstreamFailureLogContext | undefined;
 
-  constructor(code: ErrorCodeValue, status: number, message?: string, expose = true) {
+  constructor(code: ErrorCodeValue, status: number, message?: string, expose = true, options: AppErrorOptions = {}) {
     super(message ?? code);
     this.name = "AppError";
     this.code = code;
     this.status = status;
     this.expose = expose;
+    this.retryAfter = options.retryAfter;
+    this.logContext = options.logContext;
   }
 }
 
