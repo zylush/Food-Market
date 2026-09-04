@@ -194,6 +194,19 @@ STRIPE_SECRET_KEY=sk_test_your_test_secret_key
 STRIPE_PRICE_ID=price_your_monthly_price_id
 ```
 
+##### Complete a successful test Checkout
+
+Use Stripe **Test mode only**. After opening Checkout from FoodiesFeed, enter these values to simulate a successful card payment:
+
+| Checkout field | Test value |
+| --- | --- |
+| Card number | `4242 4242 4242 4242` |
+| Expiry date | Any future date, for example `12/34` |
+| CVC | Any three digits |
+| Name, email, and other fields | Any test value |
+
+These details never charge a real card when the app uses `sk_test_` keys. Never enter a real card number in local testing. For cards that simulate authentication or declined payments, see [Stripe's testing guide](https://docs.stripe.com/testing).
+
 For local webhook delivery, install the [Stripe CLI](https://docs.stripe.com/get-started/development-environment?lang=node), authenticate it, and keep this command running in a separate terminal:
 
 ```powershell
