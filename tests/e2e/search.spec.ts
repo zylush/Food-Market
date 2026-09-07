@@ -38,10 +38,13 @@ test.describe("free product discovery", () => {
     });
 
     await page.goto("/en");
-    await expect(page.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en#search-title");
+    await expect(page.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en#search");
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     await expect(page.getByTestId("landing-story")).toBeVisible();
+    await expect(page.getByTestId("editorial-callout")).toBeVisible();
+    await expect(page.getByRole("img", { name: "Everyday pantry food arranged for a closer look at the label." })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Recent searches" })).toHaveCount(0);
     await expect(page.getByTestId("premium-preview")).toBeVisible();
     await page.getByRole("button", { name: "cocoa spread" }).click();
     await expect(page.getByTestId("search-input")).toHaveValue("cocoa spread");
@@ -123,6 +126,30 @@ test.describe("free product discovery", () => {
       .toBe(true);
   });
 
+  test("paginates returned matches without another product-source request", async ({ page }) => {
+    let searchRequests = 0;
+    const pagedProducts = Array.from({ length: 7 }, (_, index) => ({
+      ...product,
+      barcode: `1234567890${index + 10}`,
+      name: `Product ${index + 1}`,
+    }));
+    await page.route("**/api/v1/searches", async (route) => {
+      searchRequests += 1;
+      await route.fulfill({ json: { data: pagedProducts, meta: { query: "cocoa", locale: "en" } } });
+    });
+
+    await page.goto("/en");
+    await page.getByTestId("search-input").fill("cocoa");
+    await page.getByRole("button", { name: "Search" }).click();
+
+    await expect(page.getByRole("heading", { name: "Product 1" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Product 7" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Page 2" }).click();
+    await expect(page.getByText("Page 2 of 2", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Product 7" })).toBeVisible();
+    expect(searchRequests).toBe(1);
+  });
+
   test("self-hosts the three market-label font families", async ({ page }) => {
     await page.goto("/en");
 
@@ -188,7 +215,7 @@ test.describe("free product discovery", () => {
 });
 
 test.describe("search workspace states", () => {
-  test("keeps four reserved cards visible while a submitted search is loading", async ({ page }) => {
+  test("keeps six reserved cards visible while a submitted search is loading", async ({ page }) => {
     await page.route("**/api/v1/demo-session", async (route) => route.fulfill({ json: { data: { established: true }, meta: {} } }));
     await page.route("**/api/v1/searches/recent", async (route) => route.fulfill({ json: { data: [], meta: {} } }));
 
@@ -204,7 +231,7 @@ test.describe("search workspace states", () => {
     await page.getByTestId("search-input").fill("cocoa");
     await page.getByRole("button", { name: "Search" }).click();
     await expect(page.getByTestId("result-skeleton").first()).toBeVisible();
-    await expect(page.getByTestId("result-skeleton")).toHaveCount(4);
+    await expect(page.getByTestId("result-skeleton")).toHaveCount(6);
 
     releaseSearch();
     await expect(page.getByTestId("no-results")).toBeVisible();

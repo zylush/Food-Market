@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep AI-agent context files out of the repository; project guidance lives elsewhere.
+  agentRules: false,
   reactStrictMode: true,
   poweredByHeader: false,
   async rewrites() {

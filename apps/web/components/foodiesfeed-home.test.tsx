@@ -116,7 +116,7 @@ describe("FoodiesFeedHome", () => {
     fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
     fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
 
-    await waitFor(() => expect(screen.getAllByTestId("result-skeleton")).toHaveLength(4));
+    await waitFor(() => expect(screen.getAllByTestId("result-skeleton")).toHaveLength(6));
     resolveSearch(response([]));
     await waitFor(() => expect(screen.getByTestId("no-results")).toBeInTheDocument());
   });

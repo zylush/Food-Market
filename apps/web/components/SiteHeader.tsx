@@ -11,7 +11,7 @@ export function SiteHeader({ locale }: { locale: Locale }) {
         <span>{dictionary.brandName}</span>
       </a>
       <nav className="site-nav" aria-label={dictionary.navigationLabel}>
-        <a href={`/${locale}#search-title`}>{dictionary.navSearch}</a>
+        <a href={`/${locale}#search`}>{dictionary.navSearch}</a>
         <a href={`/${locale}#how-it-works`}>{dictionary.navHowItWorks}</a>
         <a href={`/${locale}#premium`}>{dictionary.navPremium}</a>
       </nav>
