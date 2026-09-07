@@ -56,6 +56,7 @@ test.describe("free product discovery", () => {
   });
 
   test("keeps the pantry hero backdrop decorative and locally served", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/en");
     const hero = page.getByTestId("hero");
     const heroBackground = page.getByTestId("hero-background");

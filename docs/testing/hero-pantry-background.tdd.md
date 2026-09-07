@@ -30,8 +30,24 @@ As a visitor, I see a quiet pantry backdrop in the landing-page hero that reinfo
 | Guarantee | Test | Result |
 | --- | --- | --- |
 | The hero surface fills the viewport while its content remains on the page-width grid. | `foodiesfeed-home.test.tsx` | PASS |
-| The landing header has a plain opaque surface and the local hero asset remains decorative. | `search.spec.ts` | PASS |
+| The landing header has an opaque, image-backed surface and the local hero asset remains decorative. | `search.spec.ts` | PASS |
 | Existing discovery, sticky-nav, localization, and error-state browser journeys remain intact. | `corepack pnpm test:e2e` | 17 passed |
+
+## Full-width header margin
+
+- Source: derived from the request to fill the horizontal space around the sticky navigation with the pantry artwork, without making the navigation transparent over scrolled content.
+- User journey: as a visitor, I see the pantry image from edge to edge across the header while the wordmark, navigation, and language control remain on the established reading grid.
+- RED: `corepack pnpm exec vitest run apps/web/components/site-header.test.tsx` failed because `site-header-content` did not exist.
+- Browser RED: `corepack pnpm test:e2e` failed because the full-width header-content surface was absent.
+- RED commit: `2d710cd test: cover full-width header image surface`.
+- GREEN: the header owns an opaque porcelain base and a pointer-inert, low-opacity local-image layer; `site-header__inner` retains the centered reading width and carries the interactive controls.
+- Browser QA: fresh, service-worker-blocked screenshots at 1440 x 900, 768 x 1024, and 375 x 812 confirmed the image-filled header margins, readable controls, and the mobile navigation collapse. Screenshot artifacts were removed after review; no committed pixel baseline exists.
+
+| Guarantee | Test | Result |
+| --- | --- | --- |
+| The header fills a 1440px viewport while its interactive content remains centered. | `search.spec.ts` | PASS |
+| The header's decorative layer is the locally served pantry image, not transparent page content. | `search.spec.ts` | PASS |
+| Header markup retains the primary navigation and locale selector in the centered inner surface. | `site-header.test.tsx` | PASS |
 
 ## Verification
 

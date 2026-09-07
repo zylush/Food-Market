@@ -29,7 +29,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .page-width { width: min(1180px, calc(100% - 40px)); margin-inline: auto; }
 .skip-link { position: fixed; z-index: 20; top: 12px; left: 20px; padding: 10px 14px; background: var(--corn); color: var(--ink); font-family: var(--font-mono); font-size: .72rem; font-weight: 700; text-decoration: none; transform: translateY(-180%); transition: transform .18s ease; }
 .skip-link:focus { transform: translateY(0); }
-.site-header { position: sticky; z-index: 10; top: 0; width: min(1180px, calc(100% - 40px)); margin: 0 auto; display: flex; align-items: center; gap: 24px; min-height: 78px; border-bottom: 1px solid var(--rule); background: var(--porcelain); }
+.site-header { position: sticky; z-index: 10; top: 0; width: 100%; min-height: 78px; border-bottom: 1px solid var(--rule); background: var(--porcelain); isolation: isolate; }
+.site-header::before { position: absolute; z-index: 0; inset: 0 0 1px; background: url("/hero-pantry-background.png") center top / cover no-repeat; content: ""; opacity: .38; pointer-events: none; }
+.site-header__inner { position: relative; z-index: 1; display: flex; align-items: center; gap: 24px; min-height: inherit; }
 .wordmark { display: inline-flex; align-items: center; gap: 11px; text-decoration: none; font-family: var(--font-display); font-size: 1.35rem; letter-spacing: -.04em; }
 .wordmark__mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--leaf); color: var(--paper); font-family: var(--font-display); font-size: .95rem; letter-spacing: -.12em; transform: rotate(-9deg); }
 .site-nav { display: flex; align-items: center; gap: clamp(16px, 3vw, 34px); margin-inline: auto; }
@@ -244,7 +246,7 @@ h3 { font-size: 1.4rem; }
 
 @media (max-width: 760px) {
   :root { --site-header-block-size: 68px; }
-  .page-width, .site-header, .site-footer { width: min(100% - 28px, 1180px); }
+  .page-width, .site-footer { width: min(100% - 28px, 1180px); }
   .site-header { min-height: 68px; }
   .locale-picker > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
   .hero { padding: 34px 0 20px; }
@@ -287,7 +289,7 @@ h3 { font-size: 1.4rem; }
 }
 
 @media (max-width: 360px) {
-  .site-header { gap: 8px; }
+  .site-header__inner { gap: 8px; }
   .wordmark { flex-shrink: 1; gap: 7px; font-size: 1.05rem; }
   .wordmark__mark { flex: 0 0 32px; width: 32px; height: 32px; }
   .locale-picker { min-width: 0; }
