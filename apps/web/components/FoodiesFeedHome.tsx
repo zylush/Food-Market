@@ -114,7 +114,8 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
 
   return (
     <main id="main-content" className="home-main">
-      <section className="hero page-width">
+      <section className="hero hero--pantry-background page-width" data-testid="hero">
+        <span className="hero__background" data-testid="hero-background" aria-hidden="true" />
         <div className="hero__copy">
           <p className="eyebrow eyebrow--green">{dictionary.heroEyebrow}</p>
           <h1>{dictionary.heroTitle}</h1>

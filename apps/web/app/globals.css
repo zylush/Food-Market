@@ -39,8 +39,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .locale-picker { margin-left: auto; }
 .locale-picker select { padding: 8px 25px 8px 8px; border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; color: var(--ink); background: transparent; font-weight: 700; letter-spacing: .02em; cursor: pointer; }
 
-.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); align-items: center; gap: clamp(30px, 7vw, 80px); padding: clamp(64px, 9vw, 108px) 0 clamp(45px, 6vw, 70px); }
-.hero__copy { max-width: 770px; }
+.hero { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); align-items: center; gap: clamp(30px, 7vw, 80px); padding: clamp(64px, 9vw, 108px) 0 clamp(45px, 6vw, 70px); }
+.hero__background { position: absolute; z-index: 0; inset: 0; background: url("/hero-pantry-background.png") center bottom / cover no-repeat; opacity: .38; pointer-events: none; }
+.hero__copy { position: relative; z-index: 1; max-width: 770px; }
 .eyebrow { margin: 0 0 13px; color: var(--tomato); font-family: var(--font-mono); font-size: .71rem; font-weight: 700; letter-spacing: .12em; line-height: 1.4; text-transform: uppercase; }
 .eyebrow--green { color: var(--leaf); }
 h1, h2, h3, p { margin-top: 0; }
@@ -49,7 +50,7 @@ h1 { max-width: 800px; margin-bottom: 22px; font-size: clamp(3.35rem, 8vw, 7.4re
 h2 { margin-bottom: 0; font-size: clamp(1.8rem, 3vw, 2.7rem); }
 h3 { font-size: 1.4rem; }
 .hero__body { max-width: 570px; margin-bottom: 0; color: var(--muted); font-size: 1.08rem; line-height: 1.65; }
-.hero__specimen { position: relative; display: flex; flex-direction: column; justify-content: space-between; min-height: 268px; padding: 19px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 12px 12px 0 var(--tomato); transform: rotate(2.5deg); }
+.hero__specimen { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: space-between; min-height: 268px; padding: 19px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 12px 12px 0 var(--tomato); transform: rotate(2.5deg); }
 .hero__specimen::before { position: absolute; top: -7px; right: 22px; width: 62px; height: 15px; border: 1px solid var(--ink); background: var(--corn); content: ""; transform: rotate(-5deg); }
 .hero__specimen::after { position: absolute; inset: 8px; border: 1px solid var(--rule); content: ""; pointer-events: none; }
 .hero__specimen > * { position: relative; z-index: 1; }

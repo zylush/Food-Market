@@ -55,6 +55,18 @@ test.describe("free product discovery", () => {
     await expect(page.getByTestId("landing-story")).toHaveCount(0);
   });
 
+  test("keeps the pantry hero backdrop decorative and locally served", async ({ page }) => {
+    await page.goto("/en");
+    const heroBackground = page.getByTestId("hero-background");
+
+    await expect(heroBackground).toBeVisible();
+    await expect(heroBackground).toHaveAttribute("aria-hidden", "true");
+    await expect(heroBackground).toHaveCSS("pointer-events", "none");
+
+    const backgroundImage = await heroBackground.evaluate((element) => getComputedStyle(element).backgroundImage);
+    expect(backgroundImage).toContain("/hero-pantry-background.png");
+  });
+
   test("keeps the top navigation available while browsing the landing page", async ({ page }) => {
     await page.goto("/en");
     const header = page.locator("header.site-header");
