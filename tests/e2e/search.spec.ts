@@ -57,11 +57,20 @@ test.describe("free product discovery", () => {
 
   test("keeps the pantry hero backdrop decorative and locally served", async ({ page }) => {
     await page.goto("/en");
+    const hero = page.getByTestId("hero");
     const heroBackground = page.getByTestId("hero-background");
 
+    await expect(hero).toBeVisible();
     await expect(heroBackground).toBeVisible();
     await expect(heroBackground).toHaveAttribute("aria-hidden", "true");
     await expect(heroBackground).toHaveCSS("pointer-events", "none");
+    await expect(page.locator("header.site-header")).toHaveCSS("background-color", "rgb(246, 244, 238)");
+
+    const dimensions = await hero.evaluate((element) => ({
+      heroWidth: Math.round(element.getBoundingClientRect().width),
+      viewportWidth: document.documentElement.clientWidth,
+    }));
+    expect(dimensions.heroWidth).toBe(dimensions.viewportWidth);
 
     const backgroundImage = await heroBackground.evaluate((element) => getComputedStyle(element).backgroundImage);
     expect(backgroundImage).toContain("/hero-pantry-background.png");
