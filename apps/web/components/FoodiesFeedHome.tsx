@@ -114,31 +114,33 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
 
   return (
     <main id="main-content" className="home-main">
-      <section className="hero hero--pantry-background page-width" data-testid="hero">
+      <section className="hero hero--pantry-background" data-testid="hero">
         <span className="hero__background" data-testid="hero-background" aria-hidden="true" />
-        <div className="hero__copy">
-          <p className="eyebrow eyebrow--green">{dictionary.heroEyebrow}</p>
-          <h1>{dictionary.heroTitle}</h1>
-          <p className="hero__body">{dictionary.heroBody}</p>
-        </div>
-        <div className="hero__specimen" aria-label={dictionary.heroSpecimenLabel}>
-          <div className="hero__specimen-top">
-            <span>{dictionary.brandName}</span>
-            <span className="hero__specimen-seal" aria-hidden="true">ff</span>
+        <div className="hero__inner page-width" data-testid="hero-content">
+          <div className="hero__copy">
+            <p className="eyebrow eyebrow--green">{dictionary.heroEyebrow}</p>
+            <h1>{dictionary.heroTitle}</h1>
+            <p className="hero__body">{dictionary.heroBody}</p>
           </div>
-          <p className="hero__specimen-title">{dictionary.heroSpecimenLabel}</p>
-          <div className="hero__specimen-rule" aria-hidden="true" />
-          <dl className="hero__specimen-facts">
-            <div>
-              <dt>{dictionary.heroSpecimenFreeLabel}</dt>
-              <dd>{dictionary.heroSpecimenFreeValue}</dd>
+          <div className="hero__specimen" aria-label={dictionary.heroSpecimenLabel}>
+            <div className="hero__specimen-top">
+              <span>{dictionary.brandName}</span>
+              <span className="hero__specimen-seal" aria-hidden="true">ff</span>
             </div>
-            <div>
-              <dt>{dictionary.heroSpecimenPremiumLabel}</dt>
-              <dd>{dictionary.heroSpecimenPremiumValue}</dd>
-            </div>
-          </dl>
-          <span className="hero__specimen-code" aria-hidden="true">000 / 100 / FF</span>
+            <p className="hero__specimen-title">{dictionary.heroSpecimenLabel}</p>
+            <div className="hero__specimen-rule" aria-hidden="true" />
+            <dl className="hero__specimen-facts">
+              <div>
+                <dt>{dictionary.heroSpecimenFreeLabel}</dt>
+                <dd>{dictionary.heroSpecimenFreeValue}</dd>
+              </div>
+              <div>
+                <dt>{dictionary.heroSpecimenPremiumLabel}</dt>
+                <dd>{dictionary.heroSpecimenPremiumValue}</dd>
+              </div>
+            </dl>
+            <span className="hero__specimen-code" aria-hidden="true">000 / 100 / FF</span>
+          </div>
         </div>
       </section>
 
