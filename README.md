@@ -337,7 +337,7 @@ The PWA caches only static shell assets, locale pages, icons, and offline HTML. 
 
 ### Keep the landing page useful and calm
 
-The top header is sticky. On larger screens it keeps the brand, language picker, and page navigation reachable while someone scrolls; on smaller screens it keeps the brand and language picker in a compact layout. The visual system stays market-label-like—flat colour tokens, ruled surfaces, and simple CSS-built label details—without gradients or decorative generated imagery. Motion is brief and is disabled for people who prefer reduced motion; keyboard users also have a skip link and a clearly visible focus indicator.
+The top header is sticky. On larger screens it keeps the brand, language picker, and page navigation reachable while someone scrolls; on smaller screens it keeps the brand and language picker in a compact layout. The visual system stays market-label-like—flat colour tokens, ruled surfaces, and simple CSS-built label details—without gradients. Its one low-opacity, edge-composed pantry image is a local decorative hero asset: it remains pointer-inert and absent from the accessibility tree so the copy and label-card hierarchy stay primary. Motion is brief and is disabled for people who prefer reduced motion; keyboard users also have a skip link and a clearly visible focus indicator.
 
 ## Future technical decisions
 
