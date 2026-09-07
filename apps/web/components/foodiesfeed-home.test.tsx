@@ -32,10 +32,14 @@ describe("FoodiesFeedHome", () => {
 
     const hero = screen.getByTestId("hero");
     const background = screen.getByTestId("hero-background");
+    const content = screen.getByTestId("hero-content");
 
     expect(hero).toHaveClass("hero--pantry-background");
+    expect(hero).not.toHaveClass("page-width");
+    expect(content).toHaveClass("hero__inner", "page-width");
     expect(background).toHaveAttribute("aria-hidden", "true");
     expect(hero).toContainElement(background);
+    expect(hero).toContainElement(content);
   });
 
   it("uses a compact search bar and editorial divider without shelf memory", () => {
