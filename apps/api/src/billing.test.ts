@@ -24,6 +24,7 @@ function fakeStripe(options: { invalidSignature?: boolean; snapshot?: StripeSubs
       checkoutInputs.push({ customerId: input.customerId, priceId: input.priceId, locale: input.locale });
       return { url: "https://checkout.stripe.test/session" };
     }),
+    cancelSubscriptionAtPeriodEnd: vi.fn(async () => ({ ...(options.snapshot ?? fakeSnapshot), cancelAtPeriodEnd: true })),
     constructEvent: vi.fn(() => {
       if (options.invalidSignature) throw new Error("invalid signature");
       return {
@@ -136,6 +137,7 @@ describe("Stripe checkout and webhook boundary", () => {
     const stripe: StripeGateway = {
       createCustomer: vi.fn(async () => "cus_demo"),
       createCheckoutSession: vi.fn(async () => ({ url: "https://checkout.stripe.test/session" })),
+      cancelSubscriptionAtPeriodEnd: vi.fn(async () => ({ ...fakeSnapshot, cancelAtPeriodEnd: true })),
       constructEvent: vi.fn(() => {
         const event = events.shift();
         if (!event) throw new Error("No event configured");
@@ -181,6 +183,7 @@ describe("Stripe checkout and webhook boundary", () => {
     const stripe: StripeGateway = {
       createCustomer: vi.fn(async () => "cus_demo"),
       createCheckoutSession: vi.fn(async () => ({ url: "https://checkout.stripe.test/session" })),
+      cancelSubscriptionAtPeriodEnd: vi.fn(async () => ({ ...fakeSnapshot, cancelAtPeriodEnd: true })),
       constructEvent: vi.fn(() => {
         const event = events.shift();
         if (!event) throw new Error("No event configured");

@@ -32,6 +32,9 @@ describe("ProductView", () => {
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "See the numbers when they matter." })).toBeInTheDocument();
     expect(screen.getByTestId("product-image-placeholder")).toBeInTheDocument();
+    expect(screen.getByTestId("product-search-bar")).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search packaged foods" })).toHaveAttribute("name", "q");
+    expect(screen.getByRole("searchbox", { name: "Search packaged foods" }).closest("form")).toHaveAttribute("action", "/en");
   });
 
   it("renders approved nutrition values after the protected endpoint succeeds", async () => {

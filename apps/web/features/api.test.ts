@@ -1,6 +1,7 @@
 import {
   ApiClientError,
   bootstrapSession,
+  cancelSubscription,
   createCheckout,
   fetchEntitlement,
   fetchNutrition,
@@ -62,6 +63,12 @@ describe("same-origin API client", () => {
         cancelAtPeriodEnd: false,
       });
       if (input.endsWith("/billing/checkout")) return response({ url: "https://checkout.test/session" });
+      if (input.endsWith("/billing/cancel")) return response({
+        canViewNutrition: true,
+        subscriptionStatus: "active",
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: true,
+      });
       return response(product);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -73,6 +80,7 @@ describe("same-origin API client", () => {
     await expect(fetchNutrition(product.barcode)).resolves.toMatchObject({ energyKj: 1800 });
     await expect(fetchEntitlement()).resolves.toMatchObject({ canViewNutrition: true });
     await expect(createCheckout("nl")).resolves.toEqual({ url: "https://checkout.test/session" });
+    await expect(cancelSubscription()).resolves.toMatchObject({ canViewNutrition: true });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/demo-session", expect.objectContaining({
       method: "POST",
@@ -83,6 +91,10 @@ describe("same-origin API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/searches", expect.objectContaining({
       method: "POST",
       body: JSON.stringify({ query: "cocoa", locale: "en" }),
+    }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/billing/cancel", expect.objectContaining({
+      method: "POST",
+      body: "{}",
     }));
   });
 

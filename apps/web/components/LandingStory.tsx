@@ -1,7 +1,7 @@
 import Image from "next/image";
 import type { Locale } from "@foodiesfeed/contracts";
 import { getDictionary } from "../i18n/dictionaries";
-import { PremiumPrompt } from "./PremiumPrompt";
+import { PremiumAccess } from "./PremiumAccess";
 
 export function LandingStory({ locale }: { locale: Locale }) {
   const dictionary = getDictionary(locale);
@@ -52,7 +52,7 @@ export function LandingStory({ locale }: { locale: Locale }) {
       </section>
 
       <div id="premium" className="landing-premium">
-        <PremiumPrompt locale={locale} variant="featured" />
+        <PremiumAccess locale={locale} />
       </div>
     </div>
   );

@@ -183,6 +183,26 @@ h3 { font-size: 1.4rem; }
 .premium-unavailable .eyebrow { color: var(--leaf-dark); }
 .premium-unavailable h2 { max-width: 560px; margin-bottom: 12px; font-size: clamp(1.8rem, 3vw, 2.6rem); }
 .premium-unavailable p:last-child { max-width: 560px; margin-bottom: 0; color: var(--muted); }
+.subscription-status { padding: clamp(25px, 4vw, 38px); border: 1px solid var(--ink); background: var(--leaf-dark); color: var(--paper); box-shadow: 9px 9px 0 var(--tomato); }
+.subscription-status .eyebrow { color: var(--corn); }
+.subscription-status h2 { max-width: 580px; margin-bottom: 15px; font-size: clamp(2.1rem, 4vw, 3.65rem); }
+.subscription-status p { max-width: 620px; color: #e7ecdf; font-size: .94rem; }
+.subscription-status__meta { margin: 20px 0 0; color: var(--corn) !important; font-family: var(--font-mono); font-size: .72rem !important; font-weight: 700; letter-spacing: .04em; }
+.subscription-status__actions { margin-top: 24px; }
+.subscription-status__actions > .button { width: min(100%, 270px); }
+.subscription-status__confirm { margin-top: 2px; padding: 18px; border: 1px solid var(--ink); background: var(--paper); color: var(--ink); }
+.subscription-status__confirm p { margin-bottom: 16px; color: var(--ink); font-size: .88rem; }
+.subscription-status__confirm-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.subscription-status__confirm .button { min-height: 44px; }
+.subscription-status__confirm .text-button { color: var(--leaf-dark); font-size: .86rem; }
+.subscription-status__scheduled { margin: 22px 0 0; padding: 12px 14px; border-left: 3px solid var(--corn); background: rgba(255, 253, 248, .1); color: var(--paper) !important; font-size: .86rem !important; }
+.subscription-status .inline-error { color: #ffd0c2; }
+.subscription-status--loading, .subscription-status--error { background: var(--paper); color: var(--ink); box-shadow: none; }
+.subscription-status--loading .eyebrow, .subscription-status--error .eyebrow { color: var(--leaf-dark); }
+.subscription-status--loading p, .subscription-status--error p { color: var(--muted); }
+.subscription-status--loading { border-style: dashed; }
+.subscription-status--error { border-left: 4px solid var(--tomato); }
+.subscription-status--error .text-button { color: var(--leaf-dark); }
 
 @keyframes reveal-up {
   from { opacity: 0; transform: translateY(12px); }
@@ -211,6 +231,8 @@ h3 { font-size: 1.4rem; }
 
 .product-page { padding-top: 46px; padding-bottom: 100px; }
 .back-link { display: inline-block; margin-bottom: 37px; color: var(--leaf-dark); font-family: var(--font-mono); font-size: .75rem; font-weight: 700; text-decoration: none; text-transform: uppercase; }
+.product-search { margin-bottom: 44px; }
+.product-search .search-bar__footer { justify-content: flex-start; }
 .product-hero { display: grid; grid-template-columns: minmax(250px, .85fr) minmax(0, 1.15fr); gap: clamp(28px, 7vw, 90px); align-items: center; padding: 30px 0 70px; border-bottom: 1px solid var(--ink); }
 .product-hero__visual { display: grid; place-items: center; min-height: 380px; padding: 30px; background: #ecece2; }
 .product-hero__image { width: 100%; max-height: 320px; object-fit: contain; mix-blend-mode: multiply; }
@@ -280,6 +302,7 @@ h3 { font-size: 1.4rem; }
   .pagination__button { flex: 1 1 auto; }
   .pagination__pages { flex: 1 1 100%; order: -1; }
   .product-hero { grid-template-columns: 1fr; gap: 33px; padding-top: 0; }
+  .product-search { margin-bottom: 32px; }
   .product-hero__visual { min-height: 270px; }
   .product-hero__placeholder { height: 220px; }
   .product-hero__image { max-height: 220px; }
@@ -290,6 +313,11 @@ h3 { font-size: 1.4rem; }
   .premium-preview__basis { white-space: normal; }
   .premium-preview div:nth-child(odd) { margin-right: 10px; }
   .premium-preview div:nth-child(even) { padding-left: 10px; }
+  .subscription-status { padding: 23px; }
+  .subscription-status__actions > .button { width: 100%; }
+  .subscription-status__confirm-actions { align-items: stretch; flex-direction: column; }
+  .subscription-status__confirm .button { width: 100%; }
+  .subscription-status__confirm .text-button { align-self: flex-start; }
 }
 
 @media (max-width: 360px) {

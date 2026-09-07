@@ -280,6 +280,7 @@ Express exposes these internal paths; the deployed web origin adds `/api` throug
 | GET | `/v1/products/:barcode/nutrition` | active demo subscription | Return approved normalized nutrition fields |
 | GET | `/v1/entitlements` | demo session | Return persisted entitlement projection |
 | POST | `/v1/billing/checkout` | demo session | Create a server-configured subscription Checkout Session |
+| POST | `/v1/billing/cancel` | demo session | Schedule the active subscription to cancel at the end of its paid period |
 | POST | `/v1/webhooks/stripe` | valid Stripe signature | Reconcile the current subscription snapshot |
 | GET | `/v1/health` | public | Shallow process health |
 
@@ -291,7 +292,7 @@ Stripe webhooks are received as raw bytes before `express.json()`, signature-ver
 
 UI strings live in four version-controlled dictionaries. The manual selector persists `foodiesfeed_locale` across navigation and reload. Product fields use selected language → primary value → English → localized unavailable, with a visible original-language indicator when a fallback is used.
 
-The manifest uses standalone display mode, and the service worker caches only shell/static assets, locale pages, icons, and offline HTML. `/api/v1/demo-session`, `/api/v1/searches*`, `/api/v1/entitlements`, `/api/v1/billing/*`, `/api/v1/webhooks/*`, and `/api/v1/products/*/nutrition` are network-only and never service-worker cached. Offline HTML is localized for all four supported locales.
+The manifest uses standalone display mode, and the versioned service-worker cache keeps localized shell pages, icons, the manifest, and offline HTML. It deliberately does not cache Next build assets under `/_next/static/`; Next and the browser manage those files so a previous stylesheet cannot outlive the markup it styles. `/api/v1/demo-session`, `/api/v1/searches*`, `/api/v1/entitlements`, `/api/v1/billing/*`, `/api/v1/webhooks/*`, and `/api/v1/products/*/nutrition` are network-only and never service-worker cached. Offline HTML is localized for all four supported locales.
 
 ## Database technical decisions
 
@@ -331,9 +332,21 @@ When `DATABASE_URL` is blank in local development, the API uses temporary in-mem
 
 Stripe remains in test mode. The server chooses the recurring Price ID, verifies signed webhook events, and grants premium nutrition only when the stored subscription status is `active`. Webhook event IDs and subscription snapshots are reconciled transactionally; concurrent unique conflicts are rechecked and acknowledged, while an older Stripe event is recorded without replacing newer subscription state. A browser redirect or client-side state can never grant premium access. The €4.99/month example is a single demonstration price for the supported European language set, not a hard-coded browser value.
 
+### Make subscription status and cancellation explicit
+
+The homepage bootstraps the demo session and reads `/v1/entitlements` before choosing between the upgrade panel and the active-premium panel. This prevents an already-subscribed visitor from seeing an upgrade action while their entitlement is still being checked; if the check fails, the UI shows a retryable status message instead of guessing. Active users can confirm a server-authenticated `POST /v1/billing/cancel`, which asks Stripe to set `cancel_at_period_end` and keeps nutrition access available through the paid period. The endpoint returns Stripe's verified snapshot immediately for a responsive UI, while signed webhooks remain the persisted subscription source of truth. The cancellation path uses the subscription stored for the signed demo session; the browser cannot supply a customer, subscription, or price identifier.
+
+### Reuse the localized search route on product pages
+
+The product page search bar is a native GET form with the same visual language and labels as the landing search. It sends the query as `q` to the localized home route, which also accepts the legacy `recent` parameter for existing links. The home page still owns validation and the single explicit-submit product-source request, so the product page does not create a second search implementation.
+
 ### Keep the PWA shell safe offline
 
-The PWA caches only static shell assets, locale pages, icons, and offline HTML. Sessions, searches, entitlements, billing, webhooks, and premium nutrition are always network-only, so protected or personal data never enters the service-worker cache.
+The versioned PWA cache keeps localized shell pages, icons, the manifest, and offline HTML. Sessions, searches, entitlements, billing, webhooks, and premium nutrition are always network-only, so protected or personal data never enters the service-worker cache.
+
+### Keep Next build assets fresh
+
+The service worker intentionally leaves `/_next/static/` assets to Next and the browser cache instead of serving them cache-first. A cache-first stylesheet can survive a markup deployment and break page layout, as it did for the top header during local verification. The trade-off is that the rich application shell is not guaranteed offline from Cache Storage, but the localized offline documents still work and current visitors always receive matching markup and CSS.
 
 ### Keep the landing page useful and calm
 
@@ -349,7 +362,7 @@ There is no persistent stale-result cache, provider replacement, or new third-pa
 
 ### Real accounts and production billing
 
-The single demo identity is intentionally shared, so its search history and subscription state can be visible to concurrent evaluators. Registration, individual accounts, a customer portal, multiple plans, and Stripe live mode need a separate identity, security, support, and billing decision before they are added.
+The single demo identity is intentionally shared, so its search history and subscription state can be visible to concurrent evaluators. Registration, individual accounts, a customer portal, multiple plans, and Stripe live mode need a separate identity, security, support, and billing decision before they are added. Once real accounts exist, compare the direct server cancellation endpoint with Stripe Customer Portal for invoices, payment-method changes, plan changes, and account-level self-service.
 
 ## Deployment rehearsal
 

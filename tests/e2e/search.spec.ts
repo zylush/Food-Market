@@ -13,6 +13,10 @@ const product = {
 test.describe("free product discovery", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/api/v1/demo-session", async (route) => route.fulfill({ json: { data: { established: true }, meta: {} } }));
+    await page.route("**/api/v1/entitlements", async (route) => route.fulfill({ json: {
+      data: { canViewNutrition: false, subscriptionStatus: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
+      meta: {},
+    } }));
     await page.route("**/api/v1/searches/recent", async (route) => route.fulfill({ json: { data: [], meta: {} } }));
     await page.route("**/api/v1/searches", async (route) => route.fulfill({ json: { data: [product], meta: { query: "cocoa", locale: "en" } } }));
   });
@@ -140,11 +144,19 @@ test.describe("free product discovery", () => {
       });
     });
 
+    await page.setViewportSize({ width: 375, height: 800 });
     await page.goto("/en/products/1234567890123");
 
+    await expect(page.getByTestId("product-search-bar")).toBeVisible();
+    await expect(page.getByTestId("product-search-bar").locator("input")).toHaveAttribute("name", "q");
     await expect(page.getByRole("heading", { name: "Nutrition facts" })).toBeVisible();
     await expect(page.getByRole("row", { name: "Protein (g) 5.5" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "See the numbers when they matter." })).toHaveCount(0);
+
+    await page.getByTestId("product-search-bar").locator("input").fill("cocoa");
+    await page.getByTestId("product-search-bar").getByRole("button", { name: "Search" }).click();
+    await expect(page).toHaveURL(/\/en\?q=cocoa$/);
+    await expect(page.getByRole("heading", { name: "Cocoa spread" })).toBeVisible();
   });
 
   test("explains an active premium entitlement when nutrition data is temporarily unavailable", async ({ page }) => {
@@ -164,6 +176,40 @@ test.describe("free product discovery", () => {
     await expect(page.getByRole("heading", { name: "Premium is active, but nutrition data is temporarily unavailable." })).toBeVisible();
     await expect(page.getByRole("button", { name: "Unlock nutrition" })).toHaveCount(0);
     await expect(page.getByRole("alert", { name: "Premium is active, but nutrition data is temporarily unavailable." })).toContainText("The product source is taking a break");
+  });
+
+  test("shows active premium access instead of an upgrade prompt and supports cancellation", async ({ page }) => {
+    await page.route("**/api/v1/entitlements", async (route) => route.fulfill({ json: {
+      data: {
+        canViewNutrition: true,
+        subscriptionStatus: "active",
+        currentPeriodEnd: "2026-09-30T00:00:00.000Z",
+        cancelAtPeriodEnd: false,
+      },
+      meta: {},
+    } }));
+    await page.route("**/api/v1/billing/cancel", async (route) => route.fulfill({ json: {
+      data: {
+        canViewNutrition: true,
+        subscriptionStatus: "active",
+        currentPeriodEnd: "2026-09-30T00:00:00.000Z",
+        cancelAtPeriodEnd: true,
+      },
+      meta: {},
+    } }));
+
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto("/en");
+
+    await expect(page.getByTestId("premium-access")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Premium nutrition is active" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Unlock nutrition" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Cancel subscription" }).click();
+    await expect(page.getByTestId("cancel-confirmation")).toBeVisible();
+    await page.getByRole("button", { name: "Cancel at period end" }).click();
+    await expect(page.getByRole("status")).toContainText("Cancellation scheduled");
+    await expect(page.getByRole("button", { name: "Cancel subscription" })).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
   test("remains usable without horizontal overflow at 320 pixels", async ({ page }) => {
@@ -263,9 +309,40 @@ test.describe("free product discovery", () => {
     const cached = await page.evaluate(async () => Boolean(await caches.match(window.location.href)));
     expect(cached).toBe(false);
   });
+
+  test("does not persist replaceable Next build assets in the offline cache", async ({ page }) => {
+    await page.goto("/en");
+    await expect
+      .poll(() => page.evaluate(async () => Boolean(await navigator.serviceWorker.getRegistration())), { timeout: 5_000 })
+      .toBe(true);
+    await page.evaluate(async () => navigator.serviceWorker.ready);
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+
+    const stylesheetPath = await page.locator('link[rel="stylesheet"]').first().getAttribute("href");
+    expect(stylesheetPath).toMatch(/^\/_next\/static\//);
+    await page.evaluate(async (path) => (await fetch(path!)).ok, stylesheetPath);
+
+    const cachedNextAssets = await page.evaluate(async () => {
+      const cacheNames = await caches.keys();
+      const requests = (await Promise.all(cacheNames.map(async (cacheName) => (await caches.open(cacheName)).keys()))).flat();
+      return requests
+        .map((request) => new URL(request.url).pathname)
+        .filter((pathname) => pathname.startsWith("/_next/static/"));
+    });
+
+    expect(cachedNextAssets).toEqual([]);
+  });
 });
 
 test.describe("search workspace states", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/api/v1/entitlements", async (route) => route.fulfill({ json: {
+      data: { canViewNutrition: false, subscriptionStatus: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
+      meta: {},
+    } }));
+  });
+
   test("keeps six reserved cards visible while a submitted search is loading", async ({ page }) => {
     await page.route("**/api/v1/demo-session", async (route) => route.fulfill({ json: { data: { established: true }, meta: {} } }));
     await page.route("**/api/v1/searches/recent", async (route) => route.fulfill({ json: { data: [], meta: {} } }));

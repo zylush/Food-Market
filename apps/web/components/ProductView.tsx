@@ -6,6 +6,7 @@ import { getDictionary } from "../i18n/dictionaries";
 import { ApiClientError, bootstrapSession, fetchNutrition, fetchPublicProduct } from "../features/api";
 import { NutritionTable } from "./NutritionTable";
 import { PremiumPrompt } from "./PremiumPrompt";
+import { ProductSearchBar } from "./ProductSearchBar";
 
 function ProductImage({ product, locale }: { product: ProductSummary; locale: Locale }) {
   const [failed, setFailed] = useState(false);
@@ -62,6 +63,7 @@ export function ProductView({ locale, barcode }: { locale: Locale; barcode: stri
   return (
     <main id="main-content" className="page-width product-page">
       <a className="back-link" href={`/${locale}`}>← {dictionary.backToSearch}</a>
+      <ProductSearchBar locale={locale} />
       {loading ? <div className="state-panel" role="status">{dictionary.productLoading}</div> : null}
       {error ? <div className="state-panel state-panel--error" role="alert"><p>{error}</p><a className="text-button" href={`/${locale}`}>{dictionary.backToSearch}</a></div> : null}
       {product && !error ? (

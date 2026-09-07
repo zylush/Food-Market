@@ -28,6 +28,7 @@ export interface StripeGateway {
     successUrl: string;
     cancelUrl: string;
   }): Promise<{ url: string }>;
+  cancelSubscriptionAtPeriodEnd(subscriptionId: string): Promise<StripeSubscriptionSnapshot>;
   constructEvent(rawBody: Buffer, signature: string): StripeEventRecord;
   retrieveSubscription(subscriptionId: string): Promise<StripeSubscriptionSnapshot>;
 }
@@ -38,6 +39,10 @@ export class UnavailableStripeGateway implements StripeGateway {
   }
 
   async createCheckoutSession(): Promise<{ url: string }> {
+    throw new Error("Stripe is not configured");
+  }
+
+  async cancelSubscriptionAtPeriodEnd(): Promise<StripeSubscriptionSnapshot> {
     throw new Error("Stripe is not configured");
   }
 
@@ -88,6 +93,27 @@ export class StripeApiGateway implements StripeGateway {
     return { url: session.url };
   }
 
+  private toSubscriptionSnapshot(subscription: Stripe.Subscription): StripeSubscriptionSnapshot {
+    const firstItem = subscription.items.data[0];
+    const priceId = firstItem?.price.id ?? "";
+    return {
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
+      stripePriceId: priceId,
+      status: subscription.status,
+      currentPeriodEnd: firstItem?.current_period_end
+        ? new Date(firstItem.current_period_end * 1000)
+        : null,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      syncedAt: new Date(),
+    };
+  }
+
+  async cancelSubscriptionAtPeriodEnd(subscriptionId: string): Promise<StripeSubscriptionSnapshot> {
+    const subscription = await this.stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
+    return this.toSubscriptionSnapshot(subscription);
+  }
+
   constructEvent(rawBody: Buffer, signature: string): StripeEventRecord {
     const event = this.stripe.webhooks.constructEvent(rawBody, signature, this.webhookSecret);
     const object = event.data.object;
@@ -104,19 +130,7 @@ export class StripeApiGateway implements StripeGateway {
 
   async retrieveSubscription(subscriptionId: string): Promise<StripeSubscriptionSnapshot> {
     const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
-    const firstItem = subscription.items.data[0];
-    const priceId = firstItem?.price.id ?? "";
-    return {
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
-      stripePriceId: priceId,
-      status: subscription.status,
-      currentPeriodEnd: firstItem?.current_period_end
-        ? new Date(firstItem.current_period_end * 1000)
-        : null,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      syncedAt: new Date(),
-    };
+    return this.toSubscriptionSnapshot(subscription);
   }
 }
 

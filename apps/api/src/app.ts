@@ -314,7 +314,7 @@ export function createApp(dependencies: AppDependencies = {}): express.Express {
     asyncRoute(async (request, response) => {
       const user = await requireSessionUser(request);
       const subscription = await repository.findSubscription(user.id);
-      if (!canViewNutrition(subscription)) throw new AppError(ErrorCode.SubscriptionRequired, 403);
+      if (!subscription || !canViewNutrition(subscription)) throw new AppError(ErrorCode.SubscriptionRequired, 403);
       const barcode = barcodeParam(request.params.barcode);
       const nutrition = await gateway.getNutrition(barcode);
       if (!nutrition) throw new AppError(ErrorCode.NotFound, 404);
@@ -359,6 +359,42 @@ export function createApp(dependencies: AppDependencies = {}): express.Express {
         response.status(200).json({ data: checkout, meta: {} });
       } catch {
         throw new AppError(ErrorCode.CheckoutUnavailable, 503);
+      }
+    }),
+  );
+
+  app.post(
+    "/v1/billing/cancel",
+    asyncRoute(async (request, response) => {
+      const user = await requireSessionUser(request);
+      const subscription = await repository.findSubscription(user.id);
+      if (!subscription || !canViewNutrition(subscription)) throw new AppError(ErrorCode.SubscriptionRequired, 403);
+      if (subscription.cancelAtPeriodEnd) {
+        const entitlement = EntitlementSchema.parse(toEntitlement(subscription));
+        setNoStore(response, true);
+        response.status(200).json({ data: entitlement, meta: {} });
+        return;
+      }
+      if (!subscription.stripeSubscriptionId) {
+        throw new AppError(ErrorCode.SubscriptionCancellationUnavailable, 503);
+      }
+
+      try {
+        const snapshot = await stripe.cancelSubscriptionAtPeriodEnd(subscription.stripeSubscriptionId);
+        const customerMatches = !user.stripeCustomerId || snapshot.stripeCustomerId === user.stripeCustomerId;
+        if (
+          snapshot.stripeSubscriptionId !== subscription.stripeSubscriptionId ||
+          !customerMatches ||
+          !snapshot.cancelAtPeriodEnd
+        ) {
+          throw new AppError(ErrorCode.SubscriptionCancellationUnavailable, 503);
+        }
+        const entitlement = EntitlementSchema.parse(toEntitlement(snapshot));
+        setNoStore(response, true);
+        response.status(200).json({ data: entitlement, meta: {} });
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        throw new AppError(ErrorCode.SubscriptionCancellationUnavailable, 503);
       }
     }),
   );

@@ -72,6 +72,7 @@ function stripeGateway(event: StripeEventRecord, current = snapshot()): StripeGa
   return {
     createCustomer: vi.fn(async () => "cus_created"),
     createCheckoutSession: vi.fn(async () => ({ url: "https://checkout.test/session" })),
+    cancelSubscriptionAtPeriodEnd: vi.fn(async () => ({ ...current, cancelAtPeriodEnd: true })),
     constructEvent: vi.fn(() => event),
     retrieveSubscription: vi.fn(async () => current),
   };
@@ -167,6 +168,42 @@ describe("API edge behavior", () => {
     const unavailable = await noPriceAgent.post("/v1/billing/checkout").set("Content-Type", "application/json").send({ locale: "en" });
     expect(unavailable.status).toBe(503);
     expect(unavailable.body.error.code).toBe("CHECKOUT_UNAVAILABLE");
+  });
+
+  it("cancels an active subscription at period end and returns the updated entitlement", async () => {
+    const repository = new InMemoryRepository({
+      demoUser: { stripeCustomerId: "cus_demo" },
+      subscription: { status: "active", stripeSubscriptionId: "sub_demo" },
+    });
+    const stripe = stripeGateway(webhookEvent("ignored", {}));
+    const agent = request.agent(createApp({ config, gateway: gateway(), repository, stripe }));
+    await establishSession(agent);
+
+    const response = await agent
+      .post("/v1/billing/cancel")
+      .set("Origin", config.appOrigin)
+      .set("Content-Type", "application/json")
+      .send({});
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ canViewNutrition: true, subscriptionStatus: "active", cancelAtPeriodEnd: true });
+    expect(stripe.cancelSubscriptionAtPeriodEnd).toHaveBeenCalledWith("sub_demo");
+  });
+
+  it("does not expose cancellation for an account without active premium access", async () => {
+    const stripe = stripeGateway(webhookEvent("ignored", {}));
+    const agent = request.agent(createApp({ config, gateway: gateway(), repository: new InMemoryRepository(), stripe }));
+    await establishSession(agent);
+
+    const response = await agent
+      .post("/v1/billing/cancel")
+      .set("Origin", config.appOrigin)
+      .set("Content-Type", "application/json")
+      .send({});
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe("SUBSCRIPTION_REQUIRED");
+    expect(stripe.cancelSubscriptionAtPeriodEnd).not.toHaveBeenCalled();
   });
 
   it("acknowledges irrelevant webhook deliveries and rejects mismatched snapshots", async () => {

@@ -34,6 +34,15 @@ function fakeStripeClient(options: { customer?: string | { id: string }; url?: s
           data: [{ price: { id: "price_test" }, current_period_end: 1_757_000_100 }],
         },
       })),
+      update: vi.fn(async () => ({
+        id: "sub_test",
+        customer: options.customer ?? "cus_test",
+        status: "active",
+        cancel_at_period_end: true,
+        items: {
+          data: [{ price: { id: "price_test" }, current_period_end: 1_757_000_100 }],
+        },
+      })),
     },
   } as unknown as Stripe;
   return client;
@@ -72,6 +81,11 @@ describe("StripeApiGateway", () => {
       status: "active",
       cancelAtPeriodEnd: true,
     });
+    await expect(gateway.cancelSubscriptionAtPeriodEnd("sub_test")).resolves.toMatchObject({
+      stripeSubscriptionId: "sub_test",
+      cancelAtPeriodEnd: true,
+    });
+    expect(stripeClient.subscriptions.update).toHaveBeenCalledWith("sub_test", { cancel_at_period_end: true });
   });
 
   it("handles object customers and subscriptions without items", async () => {
@@ -124,6 +138,7 @@ describe("StripeApiGateway", () => {
     const unavailable = new UnavailableStripeGateway();
     await expect(unavailable.createCustomer()).rejects.toThrow("not configured");
     await expect(unavailable.createCheckoutSession()).rejects.toThrow("not configured");
+    await expect(unavailable.cancelSubscriptionAtPeriodEnd()).rejects.toThrow("not configured");
     expect(() => unavailable.constructEvent()).toThrow("not configured");
     await expect(unavailable.retrieveSubscription()).rejects.toThrow("not configured");
   });

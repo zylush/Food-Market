@@ -1,4 +1,4 @@
-const SHELL_CACHE = "foodiesfeed-shell-v2";
+const SHELL_CACHE = "foodiesfeed-shell-v3";
 const SHELL_ASSETS = [
   "/en",
   "/nl",
@@ -56,7 +56,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest") {
+  // Let Next and the browser manage build assets so a cached stylesheet cannot outlive its matching markup.
+  if (url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest") {
     event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request).then((response) => {
       const copy = response.clone();
       void caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));

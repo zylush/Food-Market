@@ -27,7 +27,7 @@ describe("FoodiesFeedHome", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps the generated pantry background decorative behind the hero content", () => {
+  it("keeps the generated pantry background decorative behind the hero content", async () => {
     render(<FoodiesFeedHome locale="en" />);
 
     const hero = screen.getByTestId("hero");
@@ -40,12 +40,15 @@ describe("FoodiesFeedHome", () => {
     expect(background).toHaveAttribute("aria-hidden", "true");
     expect(hero).toContainElement(background);
     expect(hero).toContainElement(content);
+    await waitFor(() => expect(screen.getByTestId("premium-access-error")).toBeInTheDocument());
   });
 
-  it("uses a compact search bar and editorial divider without shelf memory", () => {
+  it("uses a compact search bar and editorial divider without shelf memory", async () => {
     const calls: Array<{ url: string; method: string }> = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
       calls.push({ url: input, method: init?.method ?? "GET" });
+      if (input.endsWith("/demo-session")) return response({ established: true });
+      if (input.endsWith("/entitlements")) return response({ canViewNutrition: false, subscriptionStatus: null, currentPeriodEnd: null, cancelAtPeriodEnd: false });
       return response([]);
     }));
 
@@ -56,7 +59,7 @@ describe("FoodiesFeedHome", () => {
     expect(screen.getByRole("img", { name: "Everyday pantry food arranged for a closer look at the label." })).toBeInTheDocument();
     expect(screen.getByTestId("search-bar")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Recent searches" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("premium-preview")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("premium-preview")).toBeInTheDocument());
     const input = screen.getByTestId("search-input");
     fireEvent.click(screen.getByRole("button", { name: "cocoa spread" }));
 

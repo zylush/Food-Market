@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Locale, ProductSummary } from "@foodiesfeed/contracts";
 import { LandingStory } from "./LandingStory";
 import { ProductCard } from "./ProductCard";
-import { PremiumPrompt } from "./PremiumPrompt";
+import { PremiumAccess } from "./PremiumAccess";
 import { ApiClientError, searchProducts } from "../features/api";
 import { validateSearchInput } from "../features/search-validation";
 import { getDictionary, translate } from "../i18n/dictionaries";
@@ -235,7 +235,7 @@ export function FoodiesFeedHome({ locale, initialQuery = "" }: { locale: Locale;
                 </nav>
               ) : null}
             </section>
-            <div id="premium" className="results-premium"><PremiumPrompt locale={locale} /></div>
+            <div id="premium" className="results-premium"><PremiumAccess locale={locale} /></div>
           </>
         ) : <LandingStory locale={locale} />}
       </div>

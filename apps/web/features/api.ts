@@ -107,3 +107,11 @@ export async function createCheckout(locale: Locale): Promise<CheckoutResult> {
   });
   return CheckoutResultSchema.parse(data);
 }
+
+export async function cancelSubscription(): Promise<Entitlement> {
+  const data = await apiFetch<unknown>("/api/v1/billing/cancel", {
+    method: "POST",
+    body: "{}",
+  });
+  return EntitlementSchema.parse(data);
+}
