@@ -64,13 +64,23 @@ test.describe("free product discovery", () => {
     await expect(heroBackground).toBeVisible();
     await expect(heroBackground).toHaveAttribute("aria-hidden", "true");
     await expect(heroBackground).toHaveCSS("pointer-events", "none");
-    await expect(page.locator("header.site-header")).toHaveCSS("background-color", "rgb(246, 244, 238)");
+    const header = page.locator("header.site-header");
+    await expect(header).toHaveCSS("background-color", "rgb(246, 244, 238)");
+    await expect(page.getByTestId("site-header-content")).toBeVisible();
 
     const dimensions = await hero.evaluate((element) => ({
       heroWidth: Math.round(element.getBoundingClientRect().width),
       viewportWidth: document.documentElement.clientWidth,
     }));
     expect(dimensions.heroWidth).toBe(dimensions.viewportWidth);
+
+    const headerSurface = await header.evaluate((element) => ({
+      headerWidth: Math.round(element.getBoundingClientRect().width),
+      viewportWidth: document.documentElement.clientWidth,
+      backgroundImage: getComputedStyle(element, "::before").backgroundImage,
+    }));
+    expect(headerSurface.headerWidth).toBe(headerSurface.viewportWidth);
+    expect(headerSurface.backgroundImage).toContain("/hero-pantry-background.png");
 
     const backgroundImage = await heroBackground.evaluate((element) => getComputedStyle(element).backgroundImage);
     expect(backgroundImage).toContain("/hero-pantry-background.png");
