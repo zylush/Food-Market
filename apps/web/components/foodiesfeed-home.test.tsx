@@ -27,6 +27,17 @@ describe("FoodiesFeedHome", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps the generated pantry background decorative behind the hero content", () => {
+    render(<FoodiesFeedHome locale="en" />);
+
+    const hero = screen.getByTestId("hero");
+    const background = screen.getByTestId("hero-background");
+
+    expect(hero).toHaveClass("hero--pantry-background");
+    expect(background).toHaveAttribute("aria-hidden", "true");
+    expect(hero).toContainElement(background);
+  });
+
   it("uses a compact search bar and editorial divider without shelf memory", () => {
     const calls: Array<{ url: string; method: string }> = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
