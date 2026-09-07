@@ -11,7 +11,7 @@ describe("SiteHeader", () => {
     render(<SiteHeader locale="en" />);
 
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en#search-title");
+    expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en#search");
     expect(screen.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "/en#how-it-works");
     expect(screen.getByRole("link", { name: "Premium" })).toHaveAttribute("href", "/en#premium");
   });

@@ -10,23 +10,37 @@ function response(data: unknown, status = 200): Response {
   });
 }
 
+function product(index: number) {
+  return {
+    barcode: `80000000000${index}`,
+    name: `Product ${index}`,
+    brand: "FoodiesFeed test pantry",
+    imageUrl: null,
+    displayLanguage: "en",
+    usedLanguageFallback: false,
+    sourceUrl: `https://world.openfoodfacts.org/product/80000000000${index}`,
+  };
+}
+
 describe("FoodiesFeedHome", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the landing story and fills an example without submitting", async () => {
+  it("uses a compact search bar and editorial divider without shelf memory", () => {
     const calls: Array<{ url: string; method: string }> = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
       calls.push({ url: input, method: init?.method ?? "GET" });
-      if (input.endsWith("/demo-session")) return response({ established: true });
       return response([]);
     }));
 
     render(<FoodiesFeedHome locale="en" />);
-    await waitFor(() => expect(calls.some((call) => call.url.endsWith("/searches/recent"))).toBe(true));
 
     expect(screen.getByTestId("landing-story")).toBeInTheDocument();
+    expect(screen.getByTestId("editorial-callout")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Everyday pantry food arranged for a closer look at the label." })).toBeInTheDocument();
+    expect(screen.getByTestId("search-bar")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Recent searches" })).not.toBeInTheDocument();
     expect(screen.getByTestId("premium-preview")).toBeInTheDocument();
     const input = screen.getByTestId("search-input");
     fireEvent.click(screen.getByRole("button", { name: "cocoa spread" }));
@@ -35,28 +49,25 @@ describe("FoodiesFeedHome", () => {
     expect(calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST")).toHaveLength(0);
   });
 
-  it("keeps recent searches as actionable shelf-memory shortcuts", async () => {
+  it("paginates shelf matches locally without another product-source request", async () => {
     const calls: Array<{ url: string; method: string }> = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
       calls.push({ url: input, method: init?.method ?? "GET" });
-      if (input.endsWith("/demo-session")) return response({ established: true });
-      if (input.endsWith("/searches/recent")) {
-        return response([{
-          id: "recent-1",
-          displayTerm: "oat biscuits",
-          normalizedTerm: "oat biscuits",
-          locale: "en",
-          searchedAt: "2026-09-04T00:00:00.000Z",
-        }]);
-      }
+      if (input.endsWith("/searches") && init?.method === "POST") return response(Array.from({ length: 7 }, (_, index) => product(index + 1)));
       return response([]);
     }));
 
     render(<FoodiesFeedHome locale="en" />);
-    await waitFor(() => expect(screen.getByRole("region", { name: "Recent searches" })).toBeInTheDocument());
-    fireEvent.click(within(screen.getByRole("region", { name: "Recent searches" })).getByRole("button", { name: /oat biscuits/ }));
+    fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
 
-    await waitFor(() => expect(screen.getByTestId("no-results")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Product 1")).toBeInTheDocument());
+    expect(screen.queryByText("Product 7")).not.toBeInTheDocument();
+    const pagination = screen.getByRole("navigation", { name: "Product results pages" });
+    expect(within(pagination).getByRole("button", { name: "Page 1" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(within(pagination).getByRole("button", { name: "Page 2" }));
+    expect(screen.getByText("Product 7")).toBeInTheDocument();
+    expect(screen.queryByText("Product 1")).not.toBeInTheDocument();
     expect(calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST")).toHaveLength(1);
   });
 
@@ -64,8 +75,6 @@ describe("FoodiesFeedHome", () => {
     const calls: Array<{ url: string; method: string }> = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
       calls.push({ url: input, method: init?.method ?? "GET" });
-      if (input.endsWith("/demo-session")) return response({ established: true });
-      if (input.endsWith("/searches/recent")) return response([]);
       return response([
         {
           barcode: "1234567890123",
@@ -80,7 +89,6 @@ describe("FoodiesFeedHome", () => {
     }));
 
     render(<FoodiesFeedHome locale="en" />);
-    await waitFor(() => expect(calls.some((call) => call.url.endsWith("/searches/recent"))).toBe(true));
     const searchCallsBeforeTyping = calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST").length;
     fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
     expect(calls.filter((call) => call.url.endsWith("/searches") && call.method === "POST")).toHaveLength(searchCallsBeforeTyping);
@@ -105,7 +113,6 @@ describe("FoodiesFeedHome", () => {
     }));
 
     render(<FoodiesFeedHome locale="en" />);
-    await waitFor(() => expect(calls.some((call) => call.endsWith("/searches/recent"))).toBe(true));
     fireEvent.change(screen.getByTestId("search-input"), { target: { value: "cocoa" } });
     fireEvent.submit(screen.getByRole("button", { name: "Search" }).closest("form")!);
 
@@ -118,11 +125,9 @@ describe("FoodiesFeedHome", () => {
     const calls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (input: string) => {
       calls.push(input);
-      if (input.endsWith("/demo-session")) return response({ established: true });
       return response([]);
     }));
     render(<FoodiesFeedHome locale="de" />);
-    await waitFor(() => expect(calls.some((call) => call.endsWith("/searches/recent"))).toBe(true));
     fireEvent.change(screen.getByTestId("search-input"), { target: { value: "x" } });
     fireEvent.submit(screen.getByRole("button", { name: "Suchen" }).closest("form")!);
     expect(screen.getByRole("alert")).toHaveTextContent("mindestens zwei");
@@ -131,8 +136,6 @@ describe("FoodiesFeedHome", () => {
 
   it.each(["en", "nl", "de", "fr"] as const)("shows the source-unavailable state in %s", async (locale) => {
     vi.stubGlobal("fetch", vi.fn(async (input: string) => {
-      if (input.endsWith("/demo-session")) return response({ established: true });
-      if (input.endsWith("/searches/recent")) return response([]);
       return response({ code: "UPSTREAM_UNAVAILABLE" }, 503);
     }));
 
@@ -146,8 +149,6 @@ describe("FoodiesFeedHome", () => {
 
   it("shows a source-timeout message instead of the general unavailable state", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: string) => {
-      if (input.endsWith("/demo-session")) return response({ established: true });
-      if (input.endsWith("/searches/recent")) return response([]);
       return response({ code: "UPSTREAM_TIMEOUT" }, 504);
     }));
 
@@ -161,8 +162,6 @@ describe("FoodiesFeedHome", () => {
 
   it("separates a browser-network failure from a product-source failure", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
-      if (input.endsWith("/demo-session")) return response({ established: true });
-      if (input.endsWith("/searches/recent")) return response([]);
       if (input.endsWith("/searches") && init?.method === "POST") throw new Error("browser offline");
       return response([]);
     }));
@@ -177,8 +176,6 @@ describe("FoodiesFeedHome", () => {
 
   it("disables retry until a valid rate-limit window expires", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: string) => {
-      if (input.endsWith("/demo-session")) return response({ established: true });
-      if (input.endsWith("/searches/recent")) return response([]);
       return new Response(JSON.stringify({ error: { code: "UPSTREAM_RATE_LIMITED" } }), {
         status: 429,
         headers: { "Content-Type": "application/json", "Retry-After": "1" },
