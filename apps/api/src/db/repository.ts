@@ -84,6 +84,7 @@ export interface PrismaTransactionClient {
   };
   stripeWebhookEvent: {
     findUnique(args: unknown): Promise<StripeWebhookEventRecord | null>;
+    findFirst(args: unknown): Promise<StripeWebhookEventRecord | null>;
     create(args: unknown): Promise<StripeWebhookEventRecord>;
   };
 }
@@ -208,7 +209,20 @@ export class InMemoryRepository implements Repository {
       return { duplicate: true, subscription: cloneSubscription(existingSubscription) };
     }
 
+    const latestEvent = [...this.webhookEvents.values()]
+      .filter((event) => event.userId === input.userId)
+      .sort((left, right) => right.stripeCreatedAt.getTime() - left.stripeCreatedAt.getTime())[0];
+    const isStale = Boolean(
+      existingSubscription &&
+      latestEvent &&
+      latestEvent.stripeCreatedAt.getTime() > input.event.stripeCreatedAt.getTime(),
+    );
+
     this.webhookEvents.set(input.event.id, { ...input.event });
+    if (isStale && existingSubscription) {
+      return { duplicate: false, subscription: cloneSubscription(existingSubscription) };
+    }
+
     const now = new Date();
     const current = existingSubscription;
     const subscription: SubscriptionRecord = {
@@ -296,35 +310,120 @@ export class PrismaRepository implements Repository {
     userId: string;
     snapshot: SubscriptionSnapshot;
   }): Promise<{ duplicate: boolean; subscription: SubscriptionRecord }> {
-    return this.prisma.$transaction(async (transaction) => {
-      const existing = await transaction.stripeWebhookEvent.findUnique({ where: { id: input.event.id } });
-      const existingSubscription = await transaction.subscription.findUnique({ where: { userId: input.userId } });
-      if (existing && existingSubscription) {
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const existing = await transaction.stripeWebhookEvent.findUnique({ where: { id: input.event.id } });
+        const existingSubscription = await transaction.subscription.findUnique({ where: { userId: input.userId } });
+        if (existing && existingSubscription) {
+          return { duplicate: true, subscription: existingSubscription };
+        }
+
+        const latestEvent = await transaction.stripeWebhookEvent.findFirst({
+          where: { userId: input.userId },
+          orderBy: { stripeCreatedAt: "desc" },
+        });
+        const isStale = Boolean(
+          existingSubscription &&
+          latestEvent &&
+          latestEvent.stripeCreatedAt.getTime() > input.event.stripeCreatedAt.getTime(),
+        );
+
+        await transaction.stripeWebhookEvent.create({ data: input.event });
+        if (isStale && existingSubscription) {
+          return { duplicate: false, subscription: existingSubscription };
+        }
+
+        const subscription = await transaction.subscription.upsert({
+          where: { userId: input.userId },
+          update: {
+            stripeSubscriptionId: input.snapshot.stripeSubscriptionId,
+            stripePriceId: input.snapshot.stripePriceId,
+            status: input.snapshot.status,
+            currentPeriodEnd: input.snapshot.currentPeriodEnd,
+            cancelAtPeriodEnd: input.snapshot.cancelAtPeriodEnd,
+            syncedAt: input.snapshot.syncedAt,
+          },
+          create: {
+            userId: input.userId,
+            stripeSubscriptionId: input.snapshot.stripeSubscriptionId,
+            stripePriceId: input.snapshot.stripePriceId,
+            status: input.snapshot.status,
+            currentPeriodEnd: input.snapshot.currentPeriodEnd,
+            cancelAtPeriodEnd: input.snapshot.cancelAtPeriodEnd,
+            syncedAt: input.snapshot.syncedAt,
+          },
+        });
+        return { duplicate: false, subscription };
+      });
+    } catch (error) {
+      if (!isPrismaUniqueConstraintError(error)) throw error;
+
+      const existingEvent = await this.prisma.stripeWebhookEvent.findUnique({ where: { id: input.event.id } });
+      const existingSubscription = await this.prisma.subscription.findUnique({ where: { userId: input.userId } });
+      if (existingEvent && existingSubscription) {
         return { duplicate: true, subscription: existingSubscription };
       }
 
-      await transaction.stripeWebhookEvent.create({ data: input.event });
-      const subscription = await transaction.subscription.upsert({
+      if (!existingSubscription) throw error;
+      const latestEvent = await this.prisma.stripeWebhookEvent.findFirst({
         where: { userId: input.userId },
-        update: {
-          stripeSubscriptionId: input.snapshot.stripeSubscriptionId,
-          stripePriceId: input.snapshot.stripePriceId,
-          status: input.snapshot.status,
-          currentPeriodEnd: input.snapshot.currentPeriodEnd,
-          cancelAtPeriodEnd: input.snapshot.cancelAtPeriodEnd,
-          syncedAt: input.snapshot.syncedAt,
-        },
-        create: {
-          userId: input.userId,
-          stripeSubscriptionId: input.snapshot.stripeSubscriptionId,
-          stripePriceId: input.snapshot.stripePriceId,
-          status: input.snapshot.status,
-          currentPeriodEnd: input.snapshot.currentPeriodEnd,
-          cancelAtPeriodEnd: input.snapshot.cancelAtPeriodEnd,
-          syncedAt: input.snapshot.syncedAt,
-        },
+        orderBy: { stripeCreatedAt: "desc" },
       });
-      return { duplicate: false, subscription };
-    });
+      const isStale = Boolean(
+        latestEvent &&
+        latestEvent.stripeCreatedAt.getTime() > input.event.stripeCreatedAt.getTime(),
+      );
+      if (existingSubscription.stripeSubscriptionId !== input.snapshot.stripeSubscriptionId && !isStale) {
+        throw error;
+      }
+
+      return this.prisma.$transaction(async (transaction) => {
+        const retryExistingEvent = await transaction.stripeWebhookEvent.findUnique({ where: { id: input.event.id } });
+        const retrySubscription = await transaction.subscription.findUnique({ where: { userId: input.userId } });
+        if (retryExistingEvent && retrySubscription) {
+          return { duplicate: true, subscription: retrySubscription };
+        }
+        if (!retrySubscription) throw error;
+
+        const retryLatestEvent = await transaction.stripeWebhookEvent.findFirst({
+          where: { userId: input.userId },
+          orderBy: { stripeCreatedAt: "desc" },
+        });
+        const retryIsStale = Boolean(
+          retryLatestEvent &&
+          retryLatestEvent.stripeCreatedAt.getTime() > input.event.stripeCreatedAt.getTime(),
+        );
+        await transaction.stripeWebhookEvent.create({ data: input.event });
+        if (retryIsStale || retrySubscription.stripeSubscriptionId !== input.snapshot.stripeSubscriptionId) {
+          return { duplicate: false, subscription: retrySubscription };
+        }
+
+        const subscription = await transaction.subscription.upsert({
+          where: { userId: input.userId },
+          update: {
+            stripeSubscriptionId: input.snapshot.stripeSubscriptionId,
+            stripePriceId: input.snapshot.stripePriceId,
+            status: input.snapshot.status,
+            currentPeriodEnd: input.snapshot.currentPeriodEnd,
+            cancelAtPeriodEnd: input.snapshot.cancelAtPeriodEnd,
+            syncedAt: input.snapshot.syncedAt,
+          },
+          create: {
+            userId: input.userId,
+            stripeSubscriptionId: input.snapshot.stripeSubscriptionId,
+            stripePriceId: input.snapshot.stripePriceId,
+            status: input.snapshot.status,
+            currentPeriodEnd: input.snapshot.currentPeriodEnd,
+            cancelAtPeriodEnd: input.snapshot.cancelAtPeriodEnd,
+            syncedAt: input.snapshot.syncedAt,
+          },
+        });
+        return { duplicate: false, subscription };
+      });
+    }
   }
+}
+
+function isPrismaUniqueConstraintError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }

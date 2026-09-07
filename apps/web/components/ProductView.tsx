@@ -77,8 +77,13 @@ export function ProductView({ locale, barcode }: { locale: Locale; barcode: stri
             </div>
           </section>
           <section className="product-nutrition">
-            {nutrition ? <NutritionTable locale={locale} nutrition={nutrition} /> : <PremiumPrompt locale={locale} />}
-            {nutritionError ? <p className="state-panel state-panel--error" role="alert">{nutritionError}</p> : null}
+            {nutrition ? <NutritionTable locale={locale} nutrition={nutrition} /> : nutritionError ? (
+              <div className="premium-unavailable" role="alert" aria-labelledby="premium-unavailable-title">
+                <p className="eyebrow">{dictionary.premiumEyebrow}</p>
+                <h2 id="premium-unavailable-title">{dictionary.premiumNutritionUnavailable}</h2>
+                <p>{nutritionError}</p>
+              </div>
+            ) : <PremiumPrompt locale={locale} />}
             {sessionWarning ? <p className="muted-copy">{dictionary.sessionUnavailable}</p> : null}
           </section>
         </>

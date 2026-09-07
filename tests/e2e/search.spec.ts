@@ -147,6 +147,25 @@ test.describe("free product discovery", () => {
     await expect(page.getByRole("heading", { name: "See the numbers when they matter." })).toHaveCount(0);
   });
 
+  test("explains an active premium entitlement when nutrition data is temporarily unavailable", async ({ page }) => {
+    await page.route(/\/api\/v1\/products\/1234567890123\?locale=en$/, async (route) => {
+      await route.fulfill({ json: { data: product, meta: { locale: "en" } } });
+    });
+    await page.route("**/api/v1/products/1234567890123/nutrition", async (route) => {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "UPSTREAM_TIMEOUT" } }),
+      });
+    });
+
+    await page.goto("/en/products/1234567890123");
+
+    await expect(page.getByRole("heading", { name: "Premium is active, but nutrition data is temporarily unavailable." })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Unlock nutrition" })).toHaveCount(0);
+    await expect(page.getByRole("alert", { name: "Premium is active, but nutrition data is temporarily unavailable." })).toContainText("The product source is taking a break");
+  });
+
   test("remains usable without horizontal overflow at 320 pixels", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 });
     await page.goto("/de");

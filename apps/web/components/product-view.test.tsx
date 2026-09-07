@@ -45,4 +45,15 @@ describe("ProductView", () => {
     expect(screen.getByText("1,800")).toBeInTheDocument();
     expect(screen.getByText(/Serving size/).parentElement).toHaveTextContent("30 g");
   });
+
+  it("does not show an upgrade prompt when premium nutrition is temporarily unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string) => {
+      if (input.includes("/products/1234567890123?")) return jsonResponse(product);
+      if (input.endsWith("/demo-session")) return jsonResponse({ established: true });
+      return jsonResponse({ code: "UPSTREAM_TIMEOUT" }, 504);
+    }));
+    render(<ProductView locale="en" barcode="1234567890123" />);
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Premium is active, but nutrition data is temporarily unavailable."));
+    expect(screen.queryByRole("button", { name: "Unlock nutrition" })).not.toBeInTheDocument();
+  });
 });

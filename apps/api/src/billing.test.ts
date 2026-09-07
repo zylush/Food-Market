@@ -162,6 +162,53 @@ describe("Stripe checkout and webhook boundary", () => {
     expect((await repository.findSubscription("demo-user-0001"))?.status).toBe("canceled");
   });
 
+  it("does not let a delayed event from an older subscription replace a newer one", async () => {
+    const repository = new InMemoryRepository({ demoUser: { stripeCustomerId: "cus_demo" } });
+    const events = [
+      {
+        id: "evt_new_subscription",
+        type: "customer.subscription.created",
+        created: 1_757_000_300,
+        data: { object: { id: "sub_new", customer: "cus_demo" } },
+      },
+      {
+        id: "evt_old_subscription",
+        type: "customer.subscription.deleted",
+        created: 1_757_000_200,
+        data: { object: { id: "sub_old", customer: "cus_demo" } },
+      },
+    ];
+    const stripe: StripeGateway = {
+      createCustomer: vi.fn(async () => "cus_demo"),
+      createCheckoutSession: vi.fn(async () => ({ url: "https://checkout.stripe.test/session" })),
+      constructEvent: vi.fn(() => {
+        const event = events.shift();
+        if (!event) throw new Error("No event configured");
+        return event;
+      }),
+      retrieveSubscription: vi.fn(async (subscriptionId) => subscriptionId === "sub_new"
+        ? { ...fakeSnapshot, stripeSubscriptionId: "sub_new", status: "active" }
+        : { ...fakeSnapshot, stripeSubscriptionId: "sub_old", status: "canceled" }),
+    };
+    const app = createApp({ repository, stripe });
+
+    const newer = await request(app)
+      .post("/v1/webhooks/stripe")
+      .set("Content-Type", "application/json")
+      .set("stripe-signature", "valid")
+      .send(Buffer.from("{}"));
+    const older = await request(app)
+      .post("/v1/webhooks/stripe")
+      .set("Content-Type", "application/json")
+      .set("stripe-signature", "valid")
+      .send(Buffer.from("{}"));
+
+    expect(newer.body.data.processed).toBe(true);
+    expect(older.body.data.processed).toBe(true);
+    expect((await repository.findSubscription("demo-user-0001"))?.stripeSubscriptionId).toBe("sub_new");
+    expect((await repository.findSubscription("demo-user-0001"))?.status).toBe("active");
+  });
+
   it("does not grant access for a webhook-reconciled non-active status", async () => {
     const repository = new InMemoryRepository({ demoUser: { stripeCustomerId: "cus_demo" } });
     const stripe = fakeStripe({ snapshot: { ...fakeSnapshot, status: "past_due" } });

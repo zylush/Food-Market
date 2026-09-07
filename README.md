@@ -329,7 +329,7 @@ When `DATABASE_URL` is blank in local development, the API uses temporary in-mem
 
 ### Trust the server for premium access
 
-Stripe remains in test mode. The server chooses the recurring Price ID, verifies signed webhook events, and grants premium nutrition only when the stored subscription status is `active`. A browser redirect or client-side state can never grant premium access. The €4.99/month example is a single demonstration price for the supported European language set, not a hard-coded browser value.
+Stripe remains in test mode. The server chooses the recurring Price ID, verifies signed webhook events, and grants premium nutrition only when the stored subscription status is `active`. Webhook event IDs and subscription snapshots are reconciled transactionally; concurrent unique conflicts are rechecked and acknowledged, while an older Stripe event is recorded without replacing newer subscription state. A browser redirect or client-side state can never grant premium access. The €4.99/month example is a single demonstration price for the supported European language set, not a hard-coded browser value.
 
 ### Keep the PWA shell safe offline
 

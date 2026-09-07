@@ -64,7 +64,7 @@ describe("webhook repository", () => {
 });
 
 describe("PrismaRepository", () => {
-  function createFakePrisma() {
+  function createFakePrisma(options: { concurrentEventConflict?: boolean; concurrentSubscriptionConflict?: boolean } = {}) {
     const now = new Date("2026-09-03T00:00:00.000Z");
     const user: UserRecord = {
       id: "demo-user-0001",
@@ -101,10 +101,23 @@ describe("PrismaRepository", () => {
       processedAt: now,
     };
 
-    const eventFindUnique = vi.fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(event);
+    const eventFindUnique = options.concurrentSubscriptionConflict
+      ? vi.fn().mockResolvedValue(null)
+      : vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(event);
+    const eventFindFirst = vi.fn().mockResolvedValue(null);
     const subscriptionFindUnique = vi.fn().mockResolvedValue(subscription);
+    let subscriptionConflictPending = options.concurrentSubscriptionConflict;
+    const subscriptionUpsert = vi.fn(async () => {
+      if (subscriptionConflictPending) {
+        subscriptionConflictPending = false;
+        throw { code: "P2002" };
+      }
+      return subscription;
+    });
+    const eventCreate = vi.fn(async () => {
+      if (options.concurrentEventConflict) throw { code: "P2002" };
+      return event;
+    });
     const client = {
       user: {
         findUnique: vi.fn().mockResolvedValue(user),
@@ -112,7 +125,7 @@ describe("PrismaRepository", () => {
       },
       subscription: {
         findUnique: subscriptionFindUnique,
-        upsert: vi.fn().mockResolvedValue(subscription),
+        upsert: subscriptionUpsert,
       },
       recentSearch: {
         upsert: vi.fn().mockResolvedValue(recent),
@@ -121,7 +134,8 @@ describe("PrismaRepository", () => {
       },
       stripeWebhookEvent: {
         findUnique: eventFindUnique,
-        create: vi.fn().mockResolvedValue(event),
+        findFirst: eventFindFirst,
+        create: eventCreate,
       },
     } as unknown as PrismaLikeClient;
     client.$transaction = vi.fn(async (callback) => callback(client));
@@ -181,5 +195,76 @@ describe("PrismaRepository", () => {
 
     expect(client.stripeWebhookEvent.create).toHaveBeenCalledTimes(1);
     expect(client.subscription.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("acknowledges a concurrent duplicate after the unique event conflict commits", async () => {
+    const { client, user, subscription, event, subscriptionFindUnique } = createFakePrisma({ concurrentEventConflict: true });
+    const repository = new PrismaRepository(client);
+    subscriptionFindUnique
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(subscription);
+    const snapshot = {
+      stripeSubscriptionId: subscription.stripeSubscriptionId,
+      stripePriceId: subscription.stripePriceId,
+      status: subscription.status,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      syncedAt: subscription.syncedAt,
+    };
+
+    await expect(repository.reconcileWebhook({ event, userId: user.id, snapshot }))
+      .resolves.toMatchObject({ duplicate: true, subscription });
+    expect(client.subscription.upsert).not.toHaveBeenCalled();
+  });
+
+  it("records a stale event without replacing the current subscription", async () => {
+    const { client, user, subscription, event } = createFakePrisma();
+    const repository = new PrismaRepository(client);
+    const latestEvent = {
+      ...event,
+      id: "evt_newer",
+      stripeCreatedAt: new Date("2026-09-03T00:00:02.000Z"),
+    };
+    client.stripeWebhookEvent.findFirst = vi.fn().mockResolvedValue(latestEvent);
+    const staleEvent = {
+      ...event,
+      id: "evt_older",
+      stripeCreatedAt: new Date("2026-09-03T00:00:01.000Z"),
+    };
+    const snapshot = {
+      stripeSubscriptionId: "sub_old",
+      stripePriceId: "price_old",
+      status: "canceled",
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      syncedAt: event.processedAt,
+    };
+
+    await expect(repository.reconcileWebhook({ event: staleEvent, userId: user.id, snapshot }))
+      .resolves.toMatchObject({ duplicate: false, subscription });
+    expect(client.subscription.upsert).not.toHaveBeenCalled();
+  });
+
+  it("recovers when concurrent webhook events race on the subscription row", async () => {
+    const { client, user, subscription, event, subscriptionFindUnique } = createFakePrisma({ concurrentSubscriptionConflict: true });
+    const repository = new PrismaRepository(client);
+    subscriptionFindUnique
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(subscription)
+      .mockResolvedValueOnce(subscription);
+    const snapshot = {
+      stripeSubscriptionId: subscription.stripeSubscriptionId,
+      stripePriceId: subscription.stripePriceId,
+      status: subscription.status,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      syncedAt: subscription.syncedAt,
+    };
+
+    await expect(repository.reconcileWebhook({ event, userId: user.id, snapshot }))
+      .resolves.toMatchObject({ duplicate: false, subscription });
+    expect(client.subscription.upsert).toHaveBeenCalledTimes(2);
   });
 });

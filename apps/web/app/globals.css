@@ -179,6 +179,10 @@ h3 { font-size: 1.4rem; }
 .premium-benefits li::before { position: absolute; top: .58em; left: 0; width: 7px; height: 7px; background: var(--corn); content: ""; }
 .premium-prompt__actions { margin-top: 24px; }
 .premium-prompt--featured .button { width: 100%; }
+.premium-unavailable { padding: 28px; border: 1px solid var(--rule); border-left: 4px solid var(--tomato); background: var(--porcelain); }
+.premium-unavailable .eyebrow { color: var(--leaf-dark); }
+.premium-unavailable h2 { max-width: 560px; margin-bottom: 12px; font-size: clamp(1.8rem, 3vw, 2.6rem); }
+.premium-unavailable p:last-child { max-width: 560px; margin-bottom: 0; color: var(--muted); }
 
 @keyframes reveal-up {
   from { opacity: 0; transform: translateY(12px); }
